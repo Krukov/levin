@@ -23,7 +23,7 @@ class Server:
         self._main_loop = None
         self._app = app
 
-    def __call__(self):
+    def handle_connection(self):
         return self._connection_class(self._parser(), loop=self._get_app_loop(), app=self._app, main_loop=self._main_loop)
 
     def _get_app_loop(self):
@@ -35,7 +35,7 @@ class Server:
             self._app_loop = create_loop_thread()
         self._main_loop = loop
         self._get_app_loop().set_debug(debug)
-        server = await loop.create_server(self, host, port, reuse_address=True, reuse_port=True)
+        server = await loop.create_server(self.handle_connection, host, port, reuse_address=True, reuse_port=True)
         print("Serving on {}, {}".format(server.sockets[0].getsockname(), self._app_loop))
         while True:
             start = time.monotonic()

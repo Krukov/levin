@@ -2,9 +2,10 @@ import asyncio
 from functools import partial
 
 from .connection import Connection
-from .middlewares import format_json
+from . import middlewares
 from .parsers.hyper import H2Manager
 from .response import Response
+from .request import Request
 from .router import HttpRouter
 from .server import Server
 
@@ -14,21 +15,20 @@ async def not_found_handler(request):
 
 
 class Application:
-    def __init__(self, middlewares=(format_json(),), components=None):
+    def __init__(self, middlewares=(middlewares.log_request(), middlewares.handle_error(), middlewares.log_response(), middlewares.format_json(), middlewares.sync) ):
         self.middlewares = middlewares
-        self._components = components
         self.routes: HttpRouter = HttpRouter()
 
-    async def handle(self, request):
+    async def handle(self, request: Request):
         _handler = self.routes.resolve(request) or not_found_handler
-        for middleware in self.middlewares:
+        for middleware in self.middlewares[::-1]:
             _handler = partial(middleware, handler=_handler)
         response: Response = await _handler(request)
         return response
 
-    def _route(self, path, method):
+    def _route(self, path, method, **meta):
         def _decorator(handler):
-            self.routes.add(method, path, handler)
+            self.routes.add(method, path, handler, **meta)
             return handler
         return _decorator
 

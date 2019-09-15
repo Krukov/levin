@@ -71,3 +71,6 @@ class Request:
             if key.strip() == b"charset":
                 return value.strip().lower().decode()
         return DEFAULT_ENCODING
+
+    def asdict(self):
+        return {"method": self.method, "path": self.path, "stream": self.stream, **self._scope}

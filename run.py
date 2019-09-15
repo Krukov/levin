@@ -2,24 +2,24 @@ import asyncio, time
 from levin.app import Application
 import faulthandler
 import uvloop
-# uvloop.install()
+uvloop.install()
 
 app = Application()
 
 
 @app.get(b"/-/")
-async def root(request):
+def root(request):
     return {"status": "ok"}
 
 
 @app.get(b"/{user}/")
-async def user(request):
-    return {"status": request['user']}
+def user(request):
+    return {"status": request['user'].decode()}
 
 
 @app.post(b"/-/")
 async def post_root(request):
-    await asyncio.sleep(100)
+    await asyncio.sleep(3)
     return {"status": "20"}
 
 
@@ -27,7 +27,6 @@ async def post_root(request):
 async def del_root(request):
     time.sleep(100)
     return {"status": "20"}
-
 
 
 def main():

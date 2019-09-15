@@ -10,10 +10,9 @@ BACK_PATH_REPL = br"{\g<name>}"
 
 
 class RegexpCondition:
-    def __init__(self, method: bytes, pattern: typing.Pattern):
+    def __init__(self, method: bytes, pattern: typing.Pattern, meta: Dict):
         self.method = method
-        if isinstance(pattern, str):
-            pattern = pattern.encode()
+        self._meta = meta
         if isinstance(pattern, bytes):
             self.pattern = pattern
             self._regexp = self.pattern_to_regexp(self.slash_append(pattern))
@@ -26,7 +25,7 @@ class RegexpCondition:
             return False
         match = self._regexp.fullmatch(request.path)
         if match:
-            return {**match.groupdict(), "pattern": self.pattern}
+            return {**match.groupdict(), "pattern": self.pattern, **self._meta}
 
     @staticmethod
     def slash_append(value: bytes) -> bytes:
@@ -41,15 +40,14 @@ class RegexpCondition:
 
 
 class EqualsCondition:
-    def __init__(self, method: bytes, pattern: typing.Pattern):
-        if isinstance(pattern, str):
-            pattern = pattern.encode()
+    def __init__(self, method: bytes, pattern: bytes, meta: Dict):
         self.method = method
         self.pattern = pattern
+        self._meta = meta
 
     def __call__(self, request: typing.Request) -> Union[bool, Dict]:
         if self.method == request.method and self.slash_append(self.pattern) == self.slash_append(request.path):
-            return {"pattern": self.pattern}
+            return {"pattern": self.pattern, **self._meta}
 
     @staticmethod
     def slash_append(value: bytes) -> bytes:
@@ -75,12 +73,12 @@ class HttpRouter:
                     request[key] = value
             return handler
 
-    def add(self, method: Union[str, bytes], pattern: typing.Pattern, handler: Callable):
+    def add(self, method: Union[str, bytes], pattern: typing.Pattern, handler: Callable, **meta):
         if isinstance(method, str):
             method = method.encode()
         if isinstance(pattern, str):
             pattern = pattern.encode()
         if isinstance(pattern, typing.CompiledRe) or b"{" in pattern:
-            self._routes.append(([RegexpCondition(method, pattern)], handler))
+            self._routes.append(([RegexpCondition(method, pattern, meta)], handler))
         else:
-            self._routes.append(([EqualsCondition(method, pattern)], handler))
+            self._routes.append(([EqualsCondition(method, pattern, meta)], handler))

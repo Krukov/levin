@@ -20,9 +20,9 @@ def test_resolve_simple():
     router = HttpRouter()
     router.add(b"POST", b"/test1", handler)
     request = Request(path=b"/test1", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test1"
 
 
@@ -30,9 +30,9 @@ def test_resolve_simple_slash():
     router = HttpRouter()
     router.add(b"POST", b"/test1", handler)
     request = Request(path=b"/test1/", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test1"
 
 
@@ -40,9 +40,9 @@ def test_resolve_simple_slash_route():
     router = HttpRouter()
     router.add(b"POST", b"/test1/", handler)
     request = Request(path=b"/test1", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test1/"
 
 
@@ -60,9 +60,9 @@ def test_resolve_pattern():
     router = HttpRouter()
     router.add(b"POST", b"/test/{user}", handler)
     request = Request(path=b"/test/myuser", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test/{user}"
     assert request["user"] == b"myuser"
 
@@ -71,9 +71,9 @@ def test_resolve_pattern_slash():
     router = HttpRouter()
     router.add(b"POST", b"/test/{user}", handler)
     request = Request(path=b"/test/myuser/", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test/{user}"
     assert request["user"] == b"myuser"
 
@@ -82,9 +82,9 @@ def test_resolve_pattern_slash_route():
     router = HttpRouter()
     router.add(b"POST", b"/test/{user}/", handler)
     request = Request(path=b"/test/myuser", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test/{user}/"
     assert request["user"] == b"myuser"
 
@@ -103,9 +103,9 @@ def test_resolve_pattern_re():
     router = HttpRouter()
     router.add(b"POST", re.compile(br"/test/(?P<user>\w+)/(?P<id>\d+)"), handler)
     request = Request(path=b"/test/myuser/10", method=b"POST", body=b"")
-    hendler_res = router.resolve(request)
+    handler_res = router.resolve(request)
 
-    assert hendler_res is handler
+    assert handler_res is handler
     assert request["pattern"] == b"/test/{user}/{id}"
     assert request["user"] == b"myuser"
     assert request["id"] == b"10"

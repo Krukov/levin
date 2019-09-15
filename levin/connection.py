@@ -15,12 +15,12 @@ class TimeOut(Exception):
 
 
 class Connection:
-    __slots__ = ("_transport", "_manager", "_futures", "_loop", "_app", "_main_loop")
+    __slots__ = ("_transport", "_parser", "_futures", "_loop", "_app", "_main_loop")
 
-    def __init__(self, manager: H2Manager, app, loop=None, main_loop=None):
+    def __init__(self, parser: H2Manager, app, loop=None, main_loop=None):
         self._loop = loop
         self._main_loop = main_loop
-        self._manager = manager
+        self._parser = parser
         self._app = app
         self._transport = None
         self._futures = []
@@ -30,7 +30,7 @@ class Connection:
 
     def connection_made(self, transport: asyncio.Transport):
         self._transport = transport
-        self.write(self._manager.connect())
+        self.write(self._parser.connect())
 
     def connection_lost(self, exc):
         for future in self._futures:
@@ -44,8 +44,9 @@ class Connection:
             self.write_response(response_500, stream)
             traceback.print_exception(None, task.exception(), task.exception().__traceback__)
         timeout_future.cancel()
-    
-    async def _timeout_handler(self, future: asyncio.Future):
+
+    @staticmethod
+    async def _timeout_handler(future: asyncio.Future):
         await asyncio.sleep(5)
         if not future.done():
             future.cancel()
@@ -54,7 +55,7 @@ class Connection:
         asyncio.run_coroutine_threadsafe(self._data_received(data), loop=self._loop)
 
     async def _data_received(self, data: bytes):
-        data, requests, close = self._manager.handle_request(data)
+        data, requests, close = self._parser.handle_request(data)
         if data:
             self.write(data)
         if requests:
@@ -71,7 +72,7 @@ class Connection:
 
     def write_response(self, response: Response, stream):
         response.headers[b"content-length"] = str(len(response.body)).encode()
-        for data in self._manager.handle_response(response, stream=stream):
+        for data in self._parser.handle_response(response, stream=stream):
             self.write(data)
 
     def eof_received(self):

@@ -5,3 +5,6 @@ class Response:
         self.status = status
         self.body = body
         self.headers = headers or {}
+
+    def asdict(self):
+        return {"status": self.status}
