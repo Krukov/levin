@@ -1,10 +1,11 @@
 import asyncio
+import tracemalloc
 import linecache
 import sys
 import time
 from typing import List
+from types import CodeType
 import inspect
-from importlib.util import spec_from_file_location, module_from_spec
 
 # https://github.com/what-studio/profiling/blob/master/profiling/tracing/__init__.py
 # https://github.com/mgedmin/profilehooks/blob/master/profilehooks.py
@@ -16,9 +17,9 @@ from importlib.util import spec_from_file_location, module_from_spec
 
 
 class CallResult:
-    __slots__ = ("lineno", "caller_lineno", "filename", "depth", "start", "end", "ncalls")
+    __slots__ = ("lineno", "caller_lineno", "filename", "depth", "start", "end", "ncalls", "mem")
 
-    def __init__(self, lineno, caller_lineno, filename, depth, start, end=0, ncalls=0):
+    def __init__(self, lineno, caller_lineno, filename, depth, start, end=0, ncalls=0, mem=0):
         self.lineno = lineno
         self.filename = filename
         self.caller_lineno = caller_lineno
@@ -26,6 +27,7 @@ class CallResult:
         self.start = start
         self.end = end
         self.ncalls = ncalls
+        self.mem = mem
 
     @property
     def time(self):
@@ -44,58 +46,7 @@ class CallResult:
         return self.code.strip().startswith(("def ", "class ", "try:", "if ", "elif ", "else:", "brake", "continue", "finally: ", "while", "import ", "from ", "for ", "return ", "catch "))
 
     def __repr__(self):
-        return f"{self.lineno} - {self.start} {self.code}"
-
-
-class Profile:
-    def __init__(self, depth: int = 1):
-        self._lines: List[CallResult] = []
-        self._depth = depth
-        self._current_depth = 0
-        self._start = time.time()
-
-    def trace(self, frame, event, arg):
-        if event == "call":
-            self._current_depth += 1
-        elif event == "return":
-            self._current_depth -= 1
-        if not self._current_depth <= self._depth:
-            return self.trace
-        depth_lines = [call_result for call_result in self._lines if call_result.depth == self._current_depth]
-        if event == "line":
-            lineno = frame.f_lineno
-            filename = frame.f_code.co_filename
-            if depth_lines:
-                depth_lines[-1].end = time.time()
-            self._lines.append(CallResult(lineno=lineno, filename=filename, start=time.time(), depth=self._current_depth, caller_lineno=frame.f_code.co_firstlineno))
-
-        elif event in ("return", "exception") and depth_lines:
-            depth_lines[-1].end = time.time()
-
-        return self.trace
-
-    def get_lines(self):
-        return self._lines
-
-    def run(self, func, *args, **kwargs):
-        if asyncio.iscoroutinefunction(func):
-            return self._run_async(func, *args, **kwargs)
-        orig_trace = sys.gettrace()
-        sys.settrace(self.trace)
-        try:
-            result = func(*args, **kwargs)
-        finally:
-            sys.settrace(orig_trace)
-        return result
-
-    async def _run_async(self, func, *args, **kwargs):
-        orig_trace = sys.gettrace()
-        sys.settrace(self.trace)
-        try:
-            result = await func(*args, **kwargs)
-        finally:
-            sys.settrace(orig_trace)
-        return result
+        return f"{self.code.strip()} ({self.depth}, {self.ncalls})"
 
 
 class SimpleProfile:
@@ -109,11 +60,12 @@ class SimpleProfile:
     CALLS = (C_CALL, CALL)
     RETURNS = (C_RETURN, RETURN, EXCEPTION)
 
-    def __init__(self, depth=1):
+    def __init__(self, depth=1, memory=False):
         self._calls: List[CallResult] = []  # Storage for line call result
         self._depth = depth
         self._target_func = []
         self._functions_code = {}
+        self._trace_mem = memory
 
     @staticmethod
     def _get_code_alias(code):
@@ -129,6 +81,7 @@ class SimpleProfile:
         code_alias = self._get_code_alias(frame.f_code)
         if len(self._target_func) != self._depth and self._get_code_alias(frame.f_back.f_code) in self._target_func:
             self._target_func.append(self._get_code_alias(frame.f_code))
+            self._save_function(frame.f_code)
         if code_alias in self._target_func:
             indexes = [i for i, func in enumerate(self._target_func) if func == code_alias]
             if len(indexes) > 1:  # recursion
@@ -177,60 +130,71 @@ class SimpleProfile:
     def run(self, func, *args, **kwargs):
         func_alias = self._get_code_alias(func.__code__)
         self._target_func.append(func_alias)
-        self._functions_code[(func_alias[0], func_alias[2])] = func
+        self._save_function(func)
         if asyncio.iscoroutinefunction(func):
             return self._run_async(func, *args, **kwargs)
         orig_trace = sys.getprofile()
         sys.setprofile(self.trace)
+        if self._trace_mem:
+            tracemalloc.clear_traces()
+            tracemalloc.start()
         try:
             return func(*args, **kwargs)
         finally:
             sys.setprofile(orig_trace)
+            if self._trace_mem:
+                self._trace_mem = tracemalloc.take_snapshot()
+                tracemalloc.stop()
 
     async def _run_async(self, func, *args, **kwargs):
         orig_trace = sys.getprofile()
         sys.setprofile(self.trace)
+        if self._trace_mem:
+            tracemalloc.clear_traces()
+            tracemalloc.start()
         try:
             return await func(*args, **kwargs)
         finally:
             sys.setprofile(orig_trace)
+            if self._trace_mem:
+                self._trace_mem = tracemalloc.take_snapshot()
+                tracemalloc.stop()
 
-    def _get_function(self, func):
-        key = (func[0], func[2])
-        if key not in self._functions_code:
-            self._functions_code[key] = get_function_by(*key)
-        return self._functions_code[key]
+    def _save_function(self, code):
+        if not isinstance(code, CodeType):
+            code = code.__code__
+        self._functions_code[(code.co_filename, code.co_firstlineno)] = inspect.getsource(code)
+
+    def _get_function(self, filename, lineno):
+        return self._functions_code.get((filename, lineno))
+
+    def _get_memory_for_call(self, call: CallResult):
+        if not self._trace_mem:
+            return 0
+        snapshot = self._trace_mem.filter_traces((
+            tracemalloc.Filter(True, call.filename, lineno=call.lineno),
+        ))
+
+        for statistic in snapshot.statistics("lineno", True):
+            for frame in statistic.traceback:
+                if frame.filename == call.filename and frame.lineno == call.lineno:
+                    return statistic.size
+        return 0
 
     def get_lines(self):
         lines = {(call.lineno, call.filename, call.depth): call for call in self._calls}
-        code = func_filename = func_lineno = None
         for depth, _func in enumerate(self._target_func, start=1):
-            try:
-                code = inspect.getsource(self._get_function(_func))
-            except AttributeError:
-                depth += 1
-            else:
-                func_filename, func_lineno, _ = _func
+            func_filename, func_lineno, _ = _func
+            code = self._get_function(func_filename, func_lineno)
             for lineno, text_line in enumerate(code.splitlines()[1:], start=1):
                 if not text_line.strip():
                     continue
                 line = lines.get((lineno + func_lineno, func_filename, depth))
                 if not line:
                     line = CallResult(lineno=lineno + func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno, depth=depth)
-
+                line.mem = self._get_memory_for_call(line)
                 lines[(line.lineno, line.filename, line.depth)] = line
 
         return sorted(lines.values(), key=lambda c: (c.filename, c.depth, c.lineno))
 
-
-def get_function_by(filename, name):
-    spec = spec_from_file_location("tmp.module", filename)
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return getattr(module, name)
-
-
-def print_lines(lines: List[CallResult]):
-    for line in sorted(lines, key=lambda l: l.lineno):
-        print(f"{line.code.rstrip()} ({line.time})")
 

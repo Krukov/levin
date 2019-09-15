@@ -42,3 +42,7 @@ async def adeep():
 async def simple_aio():
     await asyncio.sleep(0.1)
 
+
+def memory_simple():
+    a = list(range(1000))
+    return a
