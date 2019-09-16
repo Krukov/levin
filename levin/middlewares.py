@@ -2,6 +2,7 @@ import asyncio
 import logging
 import json
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 
 from .response import Response
 from .request import Request
@@ -28,12 +29,12 @@ def format_json(dumps=json.dumps):
     return middleware
 
 
-async def sync(request, handler):  # should be last
-    response = handler(request)
-
-    if not asyncio.iscoroutine(response):
-        return response
-    return await response
+def sync(pool=ThreadPoolExecutor(max_workers=10, thread_name_prefix=__name__)):
+    async def middleware(request, handler):  # should be last
+        if not asyncio.iscoroutinefunction(handler):
+            return await asyncio.get_running_loop().run_in_executor(pool, handler, request)
+        return await handler(request)
+    return middleware
 
 
 def log_request(logger=_logger, level=logging.INFO, format="%(method)s %(path)s %(stream)s"):
@@ -51,11 +52,11 @@ def log_response(logger=_logger, level=logging.INFO, format="%(status)s <- %(met
     return middleware
 
 
-def default_on_error(request, exception):
+def _default_on_error(request, exception):
     return Response(status=500, body=traceback.format_exc().encode())
 
 
-def handle_error(on_error=default_on_error):
+def handle_error(on_error=_default_on_error):
     async def middleware(request: Request, handler):
         try:
             return await handler(request)

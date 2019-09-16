@@ -15,7 +15,7 @@ async def not_found_handler(request):
 
 
 class Application:
-    def __init__(self, middlewares=(middlewares.log_request(), middlewares.handle_error(), middlewares.log_response(), middlewares.format_json(), middlewares.sync) ):
+    def __init__(self, middlewares=(middlewares.log_request(), middlewares.handle_error(), middlewares.log_response(), middlewares.format_json(), middlewares.sync())):
         self.middlewares = middlewares
         self.routes: HttpRouter = HttpRouter()
 

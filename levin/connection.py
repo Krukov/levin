@@ -52,16 +52,13 @@ class Connection:
             future.cancel()
 
     def data_received(self, data: bytes):
-        asyncio.run_coroutine_threadsafe(self._data_received(data), loop=self._loop)
-
-    async def _data_received(self, data: bytes):
         data, requests, close = self._parser.handle_request(data)
         if data:
             self.write(data)
         if requests:
             for request in requests:
                 future = asyncio.run_coroutine_threadsafe(self.handle_request(request), loop=self._loop)
-                timeout_future = asyncio.ensure_future(self._timeout_handler(future), loop=self._main_loop)
+                timeout_future = asyncio.ensure_future(self._timeout_handler(future), loop=self._loop)
                 future.add_done_callback(partial(self._handler_callback, stream=request.stream, timeout_future=timeout_future))
         if close:
             self._transport.close()
