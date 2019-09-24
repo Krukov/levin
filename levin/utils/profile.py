@@ -1,11 +1,11 @@
 import asyncio
-import tracemalloc
+import inspect
 import linecache
 import sys
 import time
-from typing import List
+import tracemalloc
 from types import CodeType
-import inspect
+from typing import List
 
 # https://github.com/what-studio/profiling/blob/master/profiling/tracing/__init__.py
 # https://github.com/mgedmin/profilehooks/blob/master/profilehooks.py
@@ -43,7 +43,25 @@ class CallResult:
 
     @property
     def is_keyword(self):
-        return self.code.strip().startswith(("def ", "class ", "try:", "if ", "elif ", "else:", "brake", "continue", "finally: ", "while", "import ", "from ", "for ", "return ", "catch "))
+        return self.code.strip().startswith(
+            (
+                "def ",
+                "class ",
+                "try:",
+                "if ",
+                "elif ",
+                "else:",
+                "brake",
+                "continue",
+                "finally: ",
+                "while",
+                "import ",
+                "from ",
+                "for ",
+                "return ",
+                "catch ",
+            )
+        )
 
     def __repr__(self):
         return f"{self.code.strip()} ({self.depth}, {self.ncalls})"
@@ -51,6 +69,7 @@ class CallResult:
 
 class SimpleProfile:
     """Track only by call/return/exceptions """
+
     CALL = "call"
     C_CALL = "c_call"
     RETURN = "return"
@@ -171,9 +190,7 @@ class SimpleProfile:
     def _get_memory_for_call(self, call: CallResult):
         if not self._trace_mem:
             return 0
-        snapshot = self._trace_mem.filter_traces((
-            tracemalloc.Filter(True, call.filename, lineno=call.lineno),
-        ))
+        snapshot = self._trace_mem.filter_traces((tracemalloc.Filter(True, call.filename, lineno=call.lineno),))
 
         for statistic in snapshot.statistics("lineno", True):
             for frame in statistic.traceback:
@@ -191,10 +208,14 @@ class SimpleProfile:
                     continue
                 line = lines.get((lineno + func_lineno, func_filename, depth))
                 if not line:
-                    line = CallResult(lineno=lineno + func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno, depth=depth)
+                    line = CallResult(
+                        lineno=lineno + func_lineno,
+                        filename=func_filename,
+                        start=0,
+                        caller_lineno=func_lineno,
+                        depth=depth,
+                    )
                 line.mem = self._get_memory_for_call(line)
                 lines[(line.lineno, line.filename, line.depth)] = line
 
         return sorted(lines.values(), key=lambda c: (c.filename, c.depth, c.lineno))
-
-

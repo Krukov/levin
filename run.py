@@ -1,7 +1,7 @@
 import asyncio, time
-from levin.app import Application
+from levin.core.app import Application
 import faulthandler
-import uvloop
+
 # uvloop.install()
 
 app = Application()

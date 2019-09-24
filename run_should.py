@@ -1,20 +1,16 @@
 import asyncio, time
 import dataclasses
-from levin.app import Application
-from levin.server import
+from levin.core.server import run, server
 import faulthandler
 # import uvloop
 # uvloop.install()
 
-app = Application(middlewares=(Data, Auth, Session))
-
-
-@app.get("/-/")
+@app.route.get("/-/")
 async def simple():
     return {"status": "ok"}
 
 
-@app.get("/{user}/")
+@app.route.get("/{user}/")
 async def user(request):
     return {"status": request['user']}
 
@@ -24,14 +20,15 @@ class Data:
     test: bool
     some: str
 
+from levin.core.app import route
 
-@app.post("/-/", db_session=True, auth=True, push=Push.get("/{user.uid}/", ))
+@route.post("/-/", db_session=True, auth=True, push=Push.get("/{user.uid}/", ))
 async def post_root(data: Data, user):
     await asyncio.sleep(100)
     return {"status": data.test, "user": user.uid}
 
 
-@app.delete("/-/")
+@route.delete("/-/")
 def block():
     time.sleep(100)
     return {"status": "20"}
@@ -47,7 +44,7 @@ async def status():
 
 def main():
     faulthandler.enable()
-    run(server(app, 8000, runner=ThreadedLoop), server(app2, 9000, "/-/", debug=True))
+    run(server(app, 8000), server(app2, 9000))
 
 
 if __name__ == '__main__':

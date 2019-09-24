@@ -1,9 +1,9 @@
 import time
+
 import pytest
 
-from levin.utils.profile import SimpleProfile
-
 from . import samples
+from levin.utils.profile import SimpleProfile
 
 
 def test_simple_profile_simple():
@@ -19,7 +19,7 @@ def test_simple_profile_simple():
     assert result[0].filename == samples.__file__
     assert 0.1 < result[0].time < 0.2
 
-    assert result[1].code.strip() == "a = re.match(r\"text|foo\", text)"
+    assert result[1].code.strip() == 'a = re.match(r"text|foo", text)'
     assert result[1].func_line == 2
 
     # assert result[2].code.strip() == "if a:"
@@ -37,7 +37,7 @@ def test_simple_profile_deep():
 
     assert len(result) == 4, result
 
-    assert result[0].code.strip() == "s = \"test\""
+    assert result[0].code.strip() == 's = "test"'
     assert result[0].func_line == 1
     assert result[0].filename == samples.__file__
 
@@ -56,7 +56,7 @@ def test_deep_func_simple_profile_2():
 
     result = profile_result.get_lines()
 
-    assert result[0].code.strip() == "s = \"test\""
+    assert result[0].code.strip() == 's = "test"'
     assert result[0].func_line == 1
     assert result[0].depth == 1
     assert result[0].filename == samples.__file__
@@ -84,7 +84,7 @@ def test_deep_func_simple_profile_3():
 
     result = profile_result.get_lines()
 
-    assert result[0].code.strip() == "s = \"test\""
+    assert result[0].code.strip() == 's = "test"'
     assert result[0].func_line == 1
     assert result[0].filename == samples.__file__
 
@@ -184,7 +184,7 @@ def test_method_simple_profile_exception():
     assert result[0].filename == samples.__file__
     assert 0.1 < result[0].time < 0.2
 
-    assert result[1].code.strip() == "raise Exception(\"test\")"
+    assert result[1].code.strip() == 'raise Exception("test")'
     assert result[1].func_line == 2
 
 
@@ -217,7 +217,7 @@ async def test_deep_aio_simple():
     assert result[0].filename == samples.__file__
     assert 0.1 < result[0].time < 0.2
 
-    assert result[1].code.strip() == "print(\"Hi\")"
+    assert result[1].code.strip() == 'print("Hi")'
     assert result[1].func_line == 2
 
     assert result[2].code.strip() == "await simple_aio()"
@@ -239,7 +239,7 @@ async def test_deep_aio_2_simple():
     assert result[0].filename == samples.__file__
     assert 0.1 < result[0].time < 0.2, profile_result._calls
 
-    assert result[1].code.strip() == "print(\"Hi\")", result
+    assert result[1].code.strip() == 'print("Hi")', result
     assert result[1].func_line == 2
     assert result[1].depth == 1
 

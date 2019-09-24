@@ -5,8 +5,7 @@ from h2.connection import H2Connection
 from h2.events import ConnectionTerminated, DataReceived, RequestReceived, StreamEnded
 from h2.exceptions import ProtocolError, StreamClosedError
 
-from levin.request import Request
-from levin.response import Response
+from levin.core.common import Request, Response
 
 
 def _get_request_from_event(event):
@@ -70,15 +69,15 @@ class H2Manager:
         to_send_data += self.conn.data_to_send()
         return to_send_data, requests, close
 
-    def handle_response(self, response: Response, stream):
+    def handle_response(self, response: Response, request: Request):
         response_headers = ((":status", str(response.status)),) + tuple(response.headers.items())
-        self.conn.send_headers(stream, response_headers)
+        self.conn.send_headers(request.stream, response_headers)
         data = response.body
         while True:
 
             chunk_size = len(data)
             try:
-                self.conn.send_data(stream, data[:chunk_size], end_stream=(chunk_size >= len(data)))
+                self.conn.send_data(request.stream, data[:chunk_size], end_stream=(chunk_size >= len(data)))
             except (StreamClosedError, ProtocolError):
                 # The stream got closed and we didn't get told. We're done
                 # here.
