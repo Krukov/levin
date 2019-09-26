@@ -15,9 +15,9 @@ def _default_on_error(request, exception):
 
 
 def handle_error(on_error=_default_on_error):
-    async def middleware(request: Request, handler):
+    async def middleware(request: Request, handler, call_next):
         try:
-            return await handler(request)
+            return await call_next(request, handler)
         except Exception as exc:
             response = on_error(request, exc)
             if asyncio.iscoroutine(response):
@@ -28,35 +28,45 @@ def handle_error(on_error=_default_on_error):
 
 
 class TimeLimit(Component):
-    def __init__(self, timeout=60, loop=None):
+    name = "handler_timeout"
+
+    def __init__(self, timeout=10, loop=None):
         self.__timeout = timeout
-        self.__loop = loop or asyncio.get_running_loop()
+        self.__loop = loop
+
+    def start(self, app):
+        self.__loop = self.__loop or asyncio.get_running_loop()
 
     @staticmethod
     async def _timeout_manager(value: int, task: asyncio.Task):
         await asyncio.sleep(value)
         if not task.done():
-            task.set_result(Response(status=500, body=traceback.format_list(task.get_stack()).encode()))
+            task.cancel()
 
-    async def middleware(self, request: Request, handler):
-        task = asyncio.create_task(handler(request))  # task run in context copy
+    async def middleware(self, request: Request, handler, call_next):
+
+        task = asyncio.create_task(call_next(request, handler))  # task run in context copy
         timeout_task = self.__loop.create_task(self._timeout_manager(self.__timeout, task))
         try:
             return await task
+        except asyncio.CancelledError:
+            return Response(status=500, body=b"\nbabababababab")
         finally:
             timeout_task.cancel()
 
 
 class PatchRequest(Component):
+    name = "patch_request"
+
     def __init__(self, json_loads=json.loads):
         self._json_loads = json_loads
 
-    async def middleware(self, request: Request, handler):
+    async def middleware(self, request: Request, handler, call_next):
         request.set("json", self.data)
         request.set("json", self.json)
         request.set("content_type", self.content_type)
         request.set("encoding", self.encoding)
-        return await handler(request)
+        return await call_next(request, handler)
 
     def json(self, request):
         if request.content_type == JSON_CONTENT:

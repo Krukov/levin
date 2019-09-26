@@ -70,6 +70,7 @@ class H2Manager:
         return to_send_data, requests, close
 
     def handle_response(self, response: Response, request: Request):
+        response.headers[b"content-length"] = str(len(response.body)).encode()
         response_headers = ((":status", str(response.status)),) + tuple(response.headers.items())
         self.conn.send_headers(request.stream, response_headers)
         data = response.body

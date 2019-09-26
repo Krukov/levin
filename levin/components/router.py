@@ -1,5 +1,4 @@
 import re
-from functools import partial
 from typing import Callable, Dict, List, Tuple, Union
 
 from levin import typing
@@ -66,8 +65,13 @@ class EqualsCondition:
 
 
 class HttpRouter(Component):
+    name = "route"
+
     def __init__(self):
         self._routes: List[Tuple[List[Callable[[Request], Union[bool, Dict]]], Callable]] = []
+
+    def clean(self):
+        self._routes = []
 
     def _resolve(self, request: Request) -> Tuple[Union[None, Callable], Tuple]:
         for conditions, handler in self._routes:
@@ -75,7 +79,7 @@ class HttpRouter(Component):
             if not all(conditions_result):
                 continue
             return handler, conditions_result
-        return None, ()
+        return not_found_handler, ()
 
     @command
     def resolve(self, path: bytes, method: bytes = b"GET"):
@@ -94,7 +98,7 @@ class HttpRouter(Component):
             self._routes.append(([EqualsCondition(method, pattern, meta)], handler))
 
     @point
-    def route(self, path, method, **meta):
+    def route(self, path, method="GET", **meta):
         def _decorator(handler):
             self.add(method, path, handler, **meta)
             return handler
@@ -103,25 +107,41 @@ class HttpRouter(Component):
 
     @point
     def get(self, path, **meta):
-        return partial(self.route, method="GET", path=path, **meta)
+        def _decorator(handler):
+            self.add("GET", path, handler, **meta)
+            return handler
+
+        return _decorator
 
     @point
     def post(self, path, **meta):
-        return partial(self.route, method="POST", path=path, **meta)
+        def _decorator(handler):
+            self.add("POST", path, handler, **meta)
+            return handler
+
+        return _decorator
 
     @point
     def put(self, path, **meta):
-        return partial(self.route, method="PUT", path=path, **meta)
+        def _decorator(handler):
+            self.add("PUT", path, handler, **meta)
+            return handler
+
+        return _decorator
 
     @point
     def delete(self, path, **meta):
-        return partial(self.route, method="DELETE", path=path, **meta)
+        def _decorator(handler):
+            self.add("DELETE", path, handler, **meta)
+            return handler
 
-    async def middleware(self, request, handler):
-        _handler, conditions_result = self._resolve(request) or not_found_handler, ()
+        return _decorator
+
+    async def middleware(self, request, handler, call_next):
+        _handler, conditions_result = self._resolve(request)
         for condition_result in conditions_result:
             if not isinstance(condition_result, dict):
                 continue
             for key, value in condition_result.items():
-                request[key] = value
-        return await _handler(request)
+                request.set(key, value)
+        return await call_next(request, _handler)

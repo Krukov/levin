@@ -40,10 +40,13 @@ class Server:
         return self._loop or asyncio.get_running_loop()
 
     def handle_connection(self):
-        return self._connection_class(self._parser_class(), loop=self.loop, handle=self._app.handle)
+        return self._connection_class(self._parser_class(), loop=self.loop, handler=self._app.handler)
 
-    def get_task(self, loop):
-        return loop.create_server(self.handle_connection, self.host, self.port, reuse_address=True, reuse_port=False)
+    async def get_task(self, loop, stop_event):
+        try:
+            return await loop.create_server(self.handle_connection, self.host, self.port, reuse_address=True, reuse_port=False)
+        except Exception:
+            stop_event.set()
 
     async def start(self):
         await self._app.start()
@@ -55,27 +58,54 @@ class Server:
 async def _manage(servers_async, servers, stop_event: asyncio.Event):
     try:
         await stop_event.wait()
-    except CancelledError:
+    except:
         pass
     for server in servers:
-        await server.close()
+        await server.stop()
     for server in servers_async:
-        server.close()
-        await server.wait_closed()
+        server_result = server.result()
+        if isinstance(server_result, asyncio.AbstractServer):
+            server_result.close()
+            await server_result.wait_closed()
+        if not server.done():
+            server.cancel()
 
 
-def run(*servers, loop=None, stop_event=asyncio.Event(), wait=True):
+def run(*servers, loop=None, stop_event=None, wait=True):
     if loop is None:
         loop = asyncio.new_event_loop()
-    servers_async = [loop.create_task(server.get_task(loop)) for server in servers]
+    if stop_event is None:
+        stop_event = asyncio.Event(loop=loop)
+    for server in servers:
+        loop.run_until_complete(server.start())
+    servers_async = [loop.create_task(server.get_task(loop, stop_event)) for server in servers]
     if wait:
         manage_handler = loop.run_until_complete
     else:
         manage_handler = loop.create_task
     manage_handler(_manage(servers_async, servers, stop_event))
-
+asyncio.run
 
 def create_loop_thread():
     loop = asyncio.new_event_loop()
     threading.Thread(target=loop.run_forever, daemon=True).start()
     return loop
+
+
+def run_app(app, port):
+    return run(Server(app, host="0.0.0.0", port=port))
+
+
+def run_apps(*args):
+    servers = []
+    app, port = None, None
+    for n, arg in enumerate(args):
+        if isinstance(arg, (list, tuple)):
+            app, port = arg
+        elif not n % 2:
+            app = arg
+            port = None
+        else:
+            port = arg
+        servers.append(Server(app, host="0.0.0.0", port=port))
+    run(*servers)

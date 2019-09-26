@@ -27,11 +27,11 @@ def create_headers_map(headers: Tuple) -> HeadersProxy:
     _headers = {}
     for name, value in headers:
         _headers.setdefault(name.lower(), []).append(value)
-    return HeadersProxy(MappingProxyType({name: b"; ".join(value) for name, value in _headers.items()}))
+    return HeadersProxy({name: b"; ".join(value) for name, value in _headers.items()})
 
 
 class Request:
-    __slots__ = ("path", "method", "body", "headers", "_scope", "stream")
+    __slots__ = ("path", "method", "body", "headers", "_scope", "stream", "handler")
 
     def __init__(
         self, path: bytes = b"/", method: bytes = b"GET", body: bytes = b"", headers: Tuple = (), stream: int = 0
@@ -42,15 +42,18 @@ class Request:
         self.headers = create_headers_map(headers)
         self.stream = stream
         self._scope = {}
+        self.handler = None
 
     def __getattr__(self, item):
-        attr = self._get(item, default=empty)
+        if item in Request.__slots__:
+            return Exception("WTF")
+        attr = self.get(item, default=empty)
         if attr is empty:
             raise AttributeError(f"Request has no attr {item} in scope")
         return attr
 
-    def _get(self, item, default=None):
-        attr = self._scope.get(item, default=default)
+    def get(self, item, default=None):
+        attr = self._scope.get(item, default)
         if callable(attr) and attr != default:
             attr = attr(self)
             self._scope[item] = attr
@@ -68,4 +71,3 @@ class Response:
         self.status = status
         self.body = body
         self.headers = headers or {}
-

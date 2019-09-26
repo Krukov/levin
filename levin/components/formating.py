@@ -11,14 +11,17 @@ def _default(obj):
 
 
 class JsonFormat(Component):
-    def __init__(self, dumps=json.dumps, default=_default, content_type=b"application/json"):
+    name = "json_format"
+
+    def __init__(self, dumps=json.dumps, default=_default, content_type=b"application/json", types_to_format=(dict, list, tuple)):
         self._dumps = dumps
         self._default = default
         self._content_type = content_type
+        self._types_to_format = types_to_format
 
-    async def middleware(self, request, handler):
-        response = await handler(request)
-        if not isinstance(response, Response):
+    async def middleware(self, request, handler, call_next):
+        response = await call_next(request, handler)
+        if isinstance(response, self._types_to_format):
             data = self._dumps(response, default=self._default).encode()
             response = Response(
                 status=request.get("status", 200), body=data, headers={b"content-type": self._content_type}
@@ -30,8 +33,8 @@ class TextFormat(Component):
     def __init__(self, content_type=b"application/json"):
         self._content_type = content_type
 
-    async def middleware(self, request, handler):
-        response = await handler(request)
+    async def middleware(self, request, handler, call_next):
+        response = await call_next(request, handler)
         if isinstance(response, (str, bytes)):
             if isinstance(response, str):
                 response = response.encode()

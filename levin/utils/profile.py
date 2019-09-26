@@ -41,28 +41,6 @@ class CallResult:
     def code(self):
         return linecache.getline(self.filename, self.lineno)
 
-    @property
-    def is_keyword(self):
-        return self.code.strip().startswith(
-            (
-                "def ",
-                "class ",
-                "try:",
-                "if ",
-                "elif ",
-                "else:",
-                "brake",
-                "continue",
-                "finally: ",
-                "while",
-                "import ",
-                "from ",
-                "for ",
-                "return ",
-                "catch ",
-            )
-        )
-
     def __repr__(self):
         return f"{self.code.strip()} ({self.depth}, {self.ncalls})"
 
