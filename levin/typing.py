@@ -1,6 +1,5 @@
-import asyncio
 import re
-from typing import Awaitable, Callable, Dict, List, Type, Union
+from typing import Awaitable, Callable, Dict, Iterator, List, Tuple, Type, Union
 
 
 class ASGI2Protocol:
@@ -47,36 +46,16 @@ Response = Type[ResponseProtocol]
 Handler = Callable[[Request], Response]
 Parser = Callable[[bytes], Request]
 
-
-class ConnectionManagerProtocol:
-    _connections: List["Connection"]
-
-    def on_connection_open(self, connection: "Connection"):
-        pass
-
-    def on_request_start(self, connection: "Connection", request: Request):
-        pass
-
-    def on_request_finish(self, connection: "Connection", request: Request):
-        pass
-
-    def on_connection_close(self, connection: "Connection"):
-        pass
-
-
-ConnectionManager = Type[ConnectionManagerProtocol]
-
-
-class ConnectionProtocol(asyncio.Protocol):
-    manager: ConnectionManager
-    parser: Parser
-    handler: Callable
-
-    def __init__(self, manager: type, parser: Parser, handler: Handler):
-        pass
-
-
-Connection = Type[ConnectionProtocol]
-
 CompiledRe = type(re.compile(""))
 Pattern = Union[bytes, str, CompiledRe]
+
+
+class ParserProtocol:
+    def connect(self) -> bytes:
+        ...
+
+    def handle_request(self, data: bytes) -> Tuple[bytes, List[Request], bool]:
+        ...
+
+    def handle_response(self, response, request) -> Iterator[bytes]:
+        ...

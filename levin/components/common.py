@@ -11,6 +11,7 @@ JSON_CONTENT = b"application/json"
 
 
 def _default_on_error(request, exception):
+    traceback.print_exception(None, exception, exception.__traceback__)
     return Response(status=500, body=traceback.format_exc().encode())
 
 
@@ -50,7 +51,7 @@ class TimeLimit(Component):
         try:
             return await task
         except asyncio.CancelledError:
-            return Response(status=500, body=b"\nbabababababab")
+            return Response(status=500, body=b"Timeout")
         finally:
             timeout_task.cancel()
 
@@ -62,17 +63,17 @@ class PatchRequest(Component):
         self._json_loads = json_loads
 
     async def middleware(self, request: Request, handler, call_next):
-        request.set("json", self.data)
+        request.set("data", self.data)
         request.set("json", self.json)
         request.set("content_type", self.content_type)
         request.set("encoding", self.encoding)
         return await call_next(request, handler)
 
-    def json(self, request):
+    def json(self, request) -> dict:
         if request.content_type == JSON_CONTENT:
             return self._json_loads(request.body.decode(request.encoding))
 
-    def data(self, request):
+    def data(self, request) -> dict:
         pass  # todo: parse multipart form data
 
     @staticmethod

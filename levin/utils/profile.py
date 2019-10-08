@@ -19,7 +19,17 @@ from typing import List
 class CallResult:
     __slots__ = ("lineno", "caller_lineno", "filename", "depth", "start", "end", "ncalls", "mem")
 
-    def __init__(self, lineno, caller_lineno, filename, depth, start, end=0, ncalls=0, mem=0):
+    def __init__(
+        self,
+        lineno: int,
+        caller_lineno: int,
+        filename: str,
+        depth: int,
+        start: float,
+        end: float = 0,
+        ncalls: int = 0,
+        mem: int = 0,
+    ):
         self.lineno = lineno
         self.filename = filename
         self.caller_lineno = caller_lineno
@@ -39,7 +49,7 @@ class CallResult:
 
     @property
     def code(self):
-        return linecache.getline(self.filename, self.lineno)
+        return linecache.getline(self.filename, self.lineno).rstrip("\n")
 
     def __repr__(self):
         return f"{self.code.strip()} ({self.depth}, {self.ncalls})"
@@ -57,12 +67,15 @@ class SimpleProfile:
     CALLS = (C_CALL, CALL)
     RETURNS = (C_RETURN, RETURN, EXCEPTION)
 
-    def __init__(self, depth=1, memory=False):
+    def __init__(self, depth: int = 1, memory: bool = False):
         self._calls: List[CallResult] = []  # Storage for line call result
         self._depth = depth
         self._target_func = []
         self._functions_code = {}
         self._trace_mem = memory
+        self._orig_trace = None
+        self._trace_mem_snapshot = None
+        self._stop = False
 
     @staticmethod
     def _get_code_alias(code):
@@ -128,9 +141,9 @@ class SimpleProfile:
         func_alias = self._get_code_alias(func.__code__)
         self._target_func.append(func_alias)
         self._save_function(func)
+        self._orig_trace = sys.getprofile()
         if asyncio.iscoroutinefunction(func):
             return self._run_async(func, *args, **kwargs)
-        orig_trace = sys.getprofile()
         sys.setprofile(self.trace)
         if self._trace_mem:
             tracemalloc.clear_traces()
@@ -138,13 +151,9 @@ class SimpleProfile:
         try:
             return func(*args, **kwargs)
         finally:
-            sys.setprofile(orig_trace)
-            if self._trace_mem:
-                self._trace_mem = tracemalloc.take_snapshot()
-                tracemalloc.stop()
+            self.stop()
 
     async def _run_async(self, func, *args, **kwargs):
-        orig_trace = sys.getprofile()
         sys.setprofile(self.trace)
         if self._trace_mem:
             tracemalloc.clear_traces()
@@ -152,10 +161,16 @@ class SimpleProfile:
         try:
             return await func(*args, **kwargs)
         finally:
-            sys.setprofile(orig_trace)
-            if self._trace_mem:
-                self._trace_mem = tracemalloc.take_snapshot()
-                tracemalloc.stop()
+            self.stop()
+
+    def stop(self):
+        if self._stop:
+            return
+        sys.setprofile(self._orig_trace)
+        if self._trace_mem:
+            self._trace_mem_snapshot = tracemalloc.take_snapshot()
+            tracemalloc.stop()
+        self._stop = True
 
     def _save_function(self, code):
         if not isinstance(code, CodeType):
@@ -168,7 +183,7 @@ class SimpleProfile:
     def _get_memory_for_call(self, call: CallResult):
         if not self._trace_mem:
             return 0
-        snapshot = self._trace_mem.filter_traces((tracemalloc.Filter(True, call.filename, lineno=call.lineno),))
+        snapshot = self._trace_mem_snapshot.filter_traces((tracemalloc.Filter(True, call.filename, lineno=call.lineno),))
 
         for statistic in snapshot.statistics("lineno", True):
             for frame in statistic.traceback:
@@ -197,3 +212,25 @@ class SimpleProfile:
                 lines[(line.lineno, line.filename, line.depth)] = line
 
         return sorted(lines.values(), key=lambda c: (c.filename, c.depth, c.lineno))
+
+
+def print_result(profile: SimpleProfile):
+    filename = None
+    for line in profile.get_lines():
+        if filename != line.filename:
+            filename = line.filename
+            print(f"--> {filename}")
+        if line.mem or line.time:
+            print(f"{line.lineno}: {line.code} \t <- {line.time}s; {line.mem}B nc {line.ncalls}")
+        else:
+            print(f"{line.lineno}: {line.code}")
+
+
+def profile(func):
+    p = SimpleProfile(memory=True)
+    def _func(*args, **kwargs):
+        try:
+            return p.run(func, *args, **kwargs)
+        finally:
+            print_result(p)
+    return _func

@@ -1,17 +1,17 @@
 import re
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from levin import typing
 from levin.core.common import Request, Response
 from levin.core.component import Component, command, point
 
-PATH_ARG = re.compile(br"{(?P<name>[-_a-zA-Z]+)}")
-PATH_REPL = br"(?P<\g<name>>[-_a-zA-Z]+)"
-BACK_PATH_ARG = re.compile(br"\(\?P<(?P<name>[-_a-zA-Z]+)[^/]+\)")
+PATH_ARG = re.compile(br"{(?P<name>[-_a-zA-Z0-9]+)}")
+PATH_REPL = br"(?P<\g<name>>[-_a-zA-Z0-9]+)"
+BACK_PATH_ARG = re.compile(br"\(\?P<(?P<name>[-_a-zA-Z0-9]+)[^/]+\)")
 BACK_PATH_REPL = br"{\g<name>}"
 
 
-async def not_found_handler(request):
+async def _not_found_handler(request):
     return Response(404, b"Not found")
 
 
@@ -67,19 +67,19 @@ class EqualsCondition:
 class HttpRouter(Component):
     name = "route"
 
-    def __init__(self):
-        self._routes: List[Tuple[List[Callable[[Request], Union[bool, Dict]]], Callable]] = []
+    def __init__(self, not_found_handler=_not_found_handler):
+        self._routes: List[List[Callable[[Request], Union[bool, Dict]], Callable], ...] = []
+        self._not_found_handler = not_found_handler
 
     def clean(self):
         self._routes = []
 
-    def _resolve(self, request: Request) -> Tuple[Union[None, Callable], Tuple]:
-        for conditions, handler in self._routes:
-            conditions_result = tuple((condition(request) for condition in conditions))
-            if not all(conditions_result):
-                continue
-            return handler, conditions_result
-        return not_found_handler, ()
+    def _resolve(self, request: Request) -> Tuple[Callable, Optional[dict]]:
+        for condition, handler in self._routes:
+            condition_result = condition(request)
+            if condition_result:
+                return handler, condition_result
+        return self._not_found_handler, {}
 
     @command
     def resolve(self, path: bytes, method: bytes = b"GET"):
@@ -93,9 +93,9 @@ class HttpRouter(Component):
         if isinstance(pattern, str):
             pattern = pattern.encode()
         if isinstance(pattern, typing.CompiledRe) or b"{" in pattern:
-            self._routes.append(([RegexpCondition(method, pattern, meta)], handler))
+            self._routes.append((RegexpCondition(method, pattern, meta), handler))
         else:
-            self._routes.append(([EqualsCondition(method, pattern, meta)], handler))
+            self._routes.append((EqualsCondition(method, pattern, meta), handler))
 
     @point
     def route(self, path, method="GET", **meta):
@@ -137,11 +137,9 @@ class HttpRouter(Component):
 
         return _decorator
 
-    async def middleware(self, request, handler, call_next):
-        _handler, conditions_result = self._resolve(request)
-        for condition_result in conditions_result:
-            if not isinstance(condition_result, dict):
-                continue
+    def middleware(self, request, handler, call_next):
+        _handler, condition_result = self._resolve(request)
+        if isinstance(condition_result, dict):
             for key, value in condition_result.items():
                 request.set(key, value)
-        return await call_next(request, _handler)
+        return call_next(request, _handler)

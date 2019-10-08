@@ -14,7 +14,7 @@ class LoggerComponent(Component):
         logger=None,
         request_level=logging.INFO,
         response_level=logging.DEBUG,
-        message_format="%(request)s: %(direction)s %(method)s %(path)s %(stream)s ",
+        message_format="%(direction)s %(method)s %(path)s %(stream)s ",
     ):
         self._logger = logger or logging.getLogger(logger_name)
         self._request_level = request_level
@@ -23,8 +23,7 @@ class LoggerComponent(Component):
         self.name = self.name + "." + logger_name
 
     def start(self, app):
-        FORMAT = "%(process)s %(thread)s: %(message)s"
-        formatter = logging.Formatter(fmt=FORMAT)
+        formatter = logging.Formatter(fmt="%(message)s")
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         self._logger.addHandler(handler)
@@ -32,7 +31,27 @@ class LoggerComponent(Component):
         self._logger.debug("CONFIGURING LOGGER")
 
     async def middleware(self, request, handler, call_next):
-        self._logger.log(self._request_level, self._format, {"direction": "->", "method": request.method.decode(), "path": request.path.decode(), "stream": request.stream, "request": id(request)})
+        self._logger.log(
+            self._request_level,
+            self._format,
+            {
+                "direction": "->",
+                "method": request.method.decode(),
+                "path": request.path.decode(),
+                "stream": request.stream,
+                "request": id(request),
+            },
+        )
         response = await call_next(request, handler)
-        self._logger.log(self._response_level, self._format, {"direction": f"<- {response.status}", "method": request.method.decode(), "path": request.path.decode(), "stream": request.stream, "request": id(request)})
+        self._logger.log(
+            self._response_level,
+            self._format,
+            {
+                "direction": f"<- {response.status}",
+                "method": request.method.decode(),
+                "path": request.path.decode(),
+                "stream": request.stream,
+                "request": id(request),
+            },
+        )
         return response

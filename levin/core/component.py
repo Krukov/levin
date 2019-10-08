@@ -35,15 +35,6 @@ class Component:
             if callable(attr) and getattr(attr, "_point"):
                 return attr
 
-    #
-    # @command
-    # async def migrate(self):
-    #     pass
-    #
-    # @point
-    # async def cache(self, key, value):
-    #     pass
-
 
 class MiddlewareComponent(Component):
     def __init__(self, middleware, on_start=None, on_stop=None, name=None):

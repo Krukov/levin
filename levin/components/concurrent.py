@@ -8,21 +8,24 @@ from levin.core.component import Component
 class _Executor(Component):
     executor_class = ThreadPoolExecutor
     executor_kwargs = {}
-   
+
     def __init__(self, max_workers=10, executor_kwargs=None):
         self._executor = self.executor_class(max_workers=max_workers, **(executor_kwargs or self.executor_kwargs))
+        self._run = False
 
     def stop(self, app):
-        self._executor.shutdown(wait=True)
+        if self._run:
+            self._executor.shutdown(wait=True)
 
     @staticmethod
     def condition(request, handler):
         return True
 
-    async def middleware(self, request, handler, call_next):
+    def middleware(self, request, handler, call_next):
         if self.condition(request, handler):
+            self._run = True
             handler = partial(asyncio.get_running_loop().run_in_executor, self._executor, handler)
-        return await call_next(request, handler)
+        return call_next(request, handler)
 
 
 class SyncToAsync(_Executor):

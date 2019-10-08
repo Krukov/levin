@@ -1,7 +1,10 @@
-from types import MappingProxyType
 from typing import Mapping, Tuple
 
 empty = object()
+
+
+class ParseError(Exception):
+    pass
 
 
 class HeadersProxy:
@@ -31,7 +34,7 @@ def create_headers_map(headers: Tuple) -> HeadersProxy:
 
 
 class Request:
-    __slots__ = ("path", "method", "body", "headers", "_scope", "stream", "handler")
+    __slots__ = ("path", "method", "body", "headers", "stream", "handler", "_scope")
 
     def __init__(
         self, path: bytes = b"/", method: bytes = b"GET", body: bytes = b"", headers: Tuple = (), stream: int = 0
@@ -46,6 +49,7 @@ class Request:
 
     def __getattr__(self, item):
         if item in Request.__slots__:
+            # todo: Normal exception
             return Exception("WTF")
         attr = self.get(item, default=empty)
         if attr is empty:
@@ -63,6 +67,9 @@ class Request:
         if key not in self._scope:
             self._scope[key] = value
 
+    # def cancel(self):
+    #     self._ = True
+
 
 class Response:
     __slots__ = ("status", "body", "headers")
@@ -71,3 +78,7 @@ class Response:
         self.status = status
         self.body = body
         self.headers = headers or {}
+
+
+class PseudoConnection:
+    __slots__ = ("peername", "_close", "requests")

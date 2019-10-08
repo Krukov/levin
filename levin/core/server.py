@@ -1,10 +1,11 @@
 import asyncio
-import threading
-from concurrent.futures import CancelledError
 
 from levin.core.connection import Connection
-from levin.core.parsers.hyper import H2Manager
+# from levin.core.parsers.http_tools import Parser
+from levin.core.parsers.http_simple import Parser as Http1Parser
+from levin.core.parsers.hyper import Parser as Http2Parser
 
+# https://medium.com/@pgjones/an-asyncio-socket-tutorial-5e6f3308b8b0
 # https://ruslanspivak.com/lsbaws-part3/
 # https://github.com/pgjones/hypercorn
 # https://github.com/python-hyper/hyper-h2
@@ -25,11 +26,11 @@ class Server:
         host: str = "127.0.0.1",
         port: int = 8000,
         connection_class=Connection,
-        parser_class=H2Manager,
+        parsers_class=(Http2Parser, Http1Parser),
         loop=None,
     ):
         self._connection_class = connection_class
-        self._parser_class = parser_class
+        self._parsers_class = parsers_class
         self._app = app
         self.host = host
         self.port = port
@@ -40,11 +41,15 @@ class Server:
         return self._loop or asyncio.get_running_loop()
 
     def handle_connection(self):
-        return self._connection_class(self._parser_class(), loop=self.loop, handler=self._app.handler)
+        return self._connection_class(
+            [parser() for parser in self._parsers_class], loop=self.loop, handler=self._app.handler
+        )
 
     async def get_task(self, loop, stop_event):
         try:
-            return await loop.create_server(self.handle_connection, self.host, self.port, reuse_address=True, reuse_port=False)
+            return await loop.create_server(
+                self.handle_connection, self.host, self.port, reuse_address=True, reuse_port=False
+            )
         except Exception:
             stop_event.set()
 
@@ -56,10 +61,8 @@ class Server:
 
 
 async def _manage(servers_async, servers, stop_event: asyncio.Event):
-    try:
-        await stop_event.wait()
-    except:
-        pass
+    await stop_event.wait()
+
     for server in servers:
         await server.stop()
     for server in servers_async:
@@ -83,13 +86,17 @@ def run(*servers, loop=None, stop_event=None, wait=True):
         manage_handler = loop.run_until_complete
     else:
         manage_handler = loop.create_task
-    manage_handler(_manage(servers_async, servers, stop_event))
-asyncio.run
-
-def create_loop_thread():
-    loop = asyncio.new_event_loop()
-    threading.Thread(target=loop.run_forever, daemon=True).start()
-    return loop
+    try:
+        manage_handler(_manage(servers_async, servers, stop_event))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            stop_event.set()
+            asyncio.runners._cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            loop.close()
 
 
 def run_app(app, port):
