@@ -43,7 +43,11 @@ class Parser(SimpleParser):
                 b"",
                 (
                     Request(
-                        path=request.path, method=parser.get_method(), headers=tuple(request.headers), body=request.body
+                        path=request.path,
+                        method=parser.get_method(),
+                        headers=tuple(request.headers),
+                        body=request.body,
+                        protocol=parser.get_http_version().encode(),
                     ),
                 ),
                 False,

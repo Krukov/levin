@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
 
@@ -8,10 +9,11 @@ from levin.core.component import Component
 class _Executor(Component):
     executor_class = ThreadPoolExecutor
     executor_kwargs = {}
+    max_workers = 50
+    _run = False
 
-    def __init__(self, max_workers=10, executor_kwargs=None):
-        self._executor = self.executor_class(max_workers=max_workers, **(executor_kwargs or self.executor_kwargs))
-        self._run = False
+    def start(self, app):
+        self._executor = self.executor_class(max_workers=self.max_workers, **self.executor_kwargs)
 
     def stop(self, app):
         if self._run:
@@ -40,6 +42,7 @@ class SyncToAsync(_Executor):
 class RunProcess(_Executor):
     name = "process_executor"
     executor_class = ProcessPoolExecutor
+    max_workers = 2 * multiprocessing.cpu_count() + 1
 
     @staticmethod
     def condition(request, handler):

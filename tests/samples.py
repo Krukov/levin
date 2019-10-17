@@ -46,3 +46,9 @@ async def simple_aio():
 def memory_simple():
     a = list(range(1000))
     return a
+
+
+async def amemory_simple():
+    await asyncio.sleep(0.0001)
+    a = list(range(1000))
+    return a

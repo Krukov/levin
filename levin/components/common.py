@@ -7,7 +7,6 @@ from levin.core.component import Component
 
 DEFAULT_ENCODING = "iso-8859-1"
 CONTENT_TYPE_HEADER = b"content-type"
-JSON_CONTENT = b"application/json"
 
 
 def _default_on_error(request, exception):
@@ -31,12 +30,11 @@ def handle_error(on_error=_default_on_error):
 class TimeLimit(Component):
     name = "handler_timeout"
 
-    def __init__(self, timeout=10, loop=None):
-        self.__timeout = timeout
-        self.__loop = loop
+    timeout: int = 10
+    loop = None
 
     def start(self, app):
-        self.__loop = self.__loop or asyncio.get_running_loop()
+        self._loop = self.loop or asyncio.get_running_loop()
 
     @staticmethod
     async def _timeout_manager(value: int, task: asyncio.Task):
@@ -47,7 +45,7 @@ class TimeLimit(Component):
     async def middleware(self, request: Request, handler, call_next):
 
         task = asyncio.create_task(call_next(request, handler))  # task run in context copy
-        timeout_task = self.__loop.create_task(self._timeout_manager(self.__timeout, task))
+        timeout_task = self._loop.create_task(self._timeout_manager(self.timeout, task))
         try:
             return await task
         except asyncio.CancelledError:
@@ -59,8 +57,8 @@ class TimeLimit(Component):
 class PatchRequest(Component):
     name = "patch_request"
 
-    def __init__(self, json_loads=json.loads):
-        self._json_loads = json_loads
+    json_loads = json.loads
+    json_content_type = b"application/json"
 
     async def middleware(self, request: Request, handler, call_next):
         request.set("data", self.data)
@@ -70,8 +68,8 @@ class PatchRequest(Component):
         return await call_next(request, handler)
 
     def json(self, request) -> dict:
-        if request.content_type == JSON_CONTENT:
-            return self._json_loads(request.body.decode(request.encoding))
+        if request.content_type == self.json_content_type:
+            return self.json_loads(request.body.decode(request.encoding))
 
     def data(self, request) -> dict:
         pass  # todo: parse multipart form data

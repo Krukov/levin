@@ -21,7 +21,7 @@ def _get_request_from_event(event):
                 path = value.encode()
             continue
         headers.append((name.encode(), value.encode()))
-    return Request(method=method, path=path, headers=tuple(headers), stream=event.stream_id)
+    return Request(method=method, path=path, headers=tuple(headers), stream=event.stream_id, protocol=b"HTTP/2")
 
 
 class Parser:

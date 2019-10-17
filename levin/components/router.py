@@ -1,9 +1,11 @@
+import inspect
 import re
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-from levin import typing
+from .cli import command
+from levin.core import typing
 from levin.core.common import Request, Response
-from levin.core.component import Component, command, point
+from levin.core.component import Component
 
 PATH_ARG = re.compile(br"{(?P<name>[-_a-zA-Z0-9]+)}")
 PATH_REPL = br"(?P<\g<name>>[-_a-zA-Z0-9]+)"
@@ -11,8 +13,14 @@ BACK_PATH_ARG = re.compile(br"\(\?P<(?P<name>[-_a-zA-Z0-9]+)[^/]+\)")
 BACK_PATH_REPL = br"{\g<name>}"
 
 
-async def _not_found_handler(request):
+def _not_found_handler(request):
     return Response(404, b"Not found")
+
+
+def _slash_append(value: bytes) -> bytes:
+    if not value.endswith(b"/"):
+        value += b"/"
+    return value + b"?"
 
 
 class RegexpCondition:
@@ -21,7 +29,7 @@ class RegexpCondition:
         self._meta = meta
         if isinstance(pattern, bytes):
             self.pattern = pattern
-            self._regexp = self.pattern_to_regexp(self.slash_append(pattern))
+            self._regexp = self.pattern_to_regexp(_slash_append(pattern))
         else:
             self._regexp = pattern
             self.pattern = BACK_PATH_ARG.sub(BACK_PATH_REPL, pattern.pattern)
@@ -33,12 +41,6 @@ class RegexpCondition:
         if match:
             return {**match.groupdict(), "pattern": self.pattern, **self._meta}
         return False
-
-    @staticmethod
-    def slash_append(value: bytes) -> bytes:
-        if not value.endswith(b"/"):
-            value += b"/"
-        return value + b"?"
 
     @staticmethod
     def pattern_to_regexp(pattern: bytes) -> typing.CompiledRe:
@@ -53,23 +55,19 @@ class EqualsCondition:
         self._meta = meta
 
     def __call__(self, request: Request) -> Union[bool, Dict]:
-        if self.method == request.method and self.slash_append(self.pattern) == self.slash_append(request.path):
+        if self.method == request.method and _slash_append(self.pattern) == _slash_append(request.path):
             return {"pattern": self.pattern, **self._meta}
         return False
-
-    @staticmethod
-    def slash_append(value: bytes) -> bytes:
-        if not value.endswith(b"/"):
-            value += b"/"
-        return value
 
 
 class HttpRouter(Component):
     name = "route"
 
+    not_found_handler: Callable = _not_found_handler
+
     def __init__(self, not_found_handler=_not_found_handler):
+        super().__init__(not_found_handler=not_found_handler)
         self._routes: List[List[Callable[[Request], Union[bool, Dict]], Callable], ...] = []
-        self._not_found_handler = not_found_handler
 
     def clean(self):
         self._routes = []
@@ -79,14 +77,25 @@ class HttpRouter(Component):
             condition_result = condition(request)
             if condition_result:
                 return handler, condition_result
-        return self._not_found_handler, {}
+        return self.not_found_handler, {}
 
     @command
-    def resolve(self, path: bytes, method: bytes = b"GET"):
-        handler, conditions_result = self._resolve(Request(method=method, path=path))
-        return handler.__name__
+    def resolve(self, path: str, method: str = "GET", code: bool = False):
+        """
+        Return handler for given path and method
+        """
+        handler, conditions_result = self._resolve(Request(method=method.encode(), path=path.encode()))
+        pattern = ""
+        if "pattern" in conditions_result:
+            pattern = f"with pattern \"{conditions_result['pattern'].decode()}\""
+        base = f'Find handler "{handler.__name__}" {pattern} in {inspect.getsourcefile(handler)}:{handler.__code__.co_firstlineno} '
+        if code:
+            code = inspect.getsource(handler)
+            return f"{base}\n\n{code}"
+        if inspect.getdoc(handler):
+            return f"{base}\n\n{inspect.getdoc(handler)}"
+        return base
 
-    @point
     def add(self, method: Union[str, bytes], pattern: typing.Pattern, handler: Callable, **meta):
         if isinstance(method, str):
             method = method.encode()
@@ -97,7 +106,6 @@ class HttpRouter(Component):
         else:
             self._routes.append((EqualsCondition(method, pattern, meta), handler))
 
-    @point
     def route(self, path, method="GET", **meta):
         def _decorator(handler):
             self.add(method, path, handler, **meta)
@@ -105,7 +113,6 @@ class HttpRouter(Component):
 
         return _decorator
 
-    @point
     def get(self, path, **meta):
         def _decorator(handler):
             self.add("GET", path, handler, **meta)
@@ -113,7 +120,6 @@ class HttpRouter(Component):
 
         return _decorator
 
-    @point
     def post(self, path, **meta):
         def _decorator(handler):
             self.add("POST", path, handler, **meta)
@@ -121,7 +127,6 @@ class HttpRouter(Component):
 
         return _decorator
 
-    @point
     def put(self, path, **meta):
         def _decorator(handler):
             self.add("PUT", path, handler, **meta)
@@ -129,7 +134,6 @@ class HttpRouter(Component):
 
         return _decorator
 
-    @point
     def delete(self, path, **meta):
         def _decorator(handler):
             self.add("DELETE", path, handler, **meta)

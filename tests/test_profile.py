@@ -14,7 +14,7 @@ def test_simple_profile_simple():
 
     assert len(result) == 4
 
-    assert result[0].code == "    time.sleep(0.1)\n"
+    assert result[0].code == "    time.sleep(0.1)"
     assert result[0].func_line == 1
     assert result[0].filename == samples.__file__
     assert 0.1 < result[0].time < 0.2
@@ -272,3 +272,13 @@ def test_memory_simple():
 
     assert len(result) == 2, result
     assert result[0].mem > 0, result
+
+
+@pytest.mark.asyncio
+async def test_amemory_simple():
+    profile_result = SimpleProfile(memory=True)
+    await profile_result.run(samples.amemory_simple)
+    result = profile_result.get_lines()
+
+    assert len(result) == 3, result
+    assert result[1].mem > 0, result

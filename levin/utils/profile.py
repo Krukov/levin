@@ -92,6 +92,7 @@ class SimpleProfile:
         if len(self._target_func) != self._depth and self._get_code_alias(frame.f_back.f_code) in self._target_func:
             self._target_func.append(self._get_code_alias(frame.f_code))
             self._save_function(frame.f_code)
+
         if code_alias in self._target_func:
             indexes = [i for i, func in enumerate(self._target_func) if func == code_alias]
             if len(indexes) > 1:  # recursion
@@ -123,22 +124,29 @@ class SimpleProfile:
         return CallResult(lineno=lineno, filename=filename, start=time.time(), depth=depth, caller_lineno=frame_line)
 
     def trace(self, frame, event: str, arg):
-
+        if frame is None:
+            return self.trace
+        # SKIP DEPTH IF IT == 1
         depth = self._get_current_depth(event, frame)
         if depth is None:
-            return None
+            return self.trace
         target_frame = self._get_event_frame(event, frame)
 
-        if event in self.CALLS and not self._get_the_same_call(target_frame, depth):
-            self._calls.append(self._create_call_from(target_frame, depth))
+        if event in self.CALLS:
+            call = self._get_the_same_call(target_frame, depth)
+            if not call:
+                self._calls.append(self._create_call_from(target_frame, depth))
+            else:
+                call.ncalls += 1
         else:
             call = self._get_the_same_call(target_frame, depth)
-            call.ncalls += 1
             call.end = time.time()
         return self.trace
 
     def run(self, func, *args, **kwargs):
-        func_alias = self._get_code_alias(func.__code__)
+        func_alias = self._get_code_alias(
+            getattr(func, "__code__", getattr(getattr(func, "func", None), "__code__", None))
+        )
         self._target_func.append(func_alias)
         self._save_function(func)
         self._orig_trace = sys.getprofile()
@@ -183,9 +191,11 @@ class SimpleProfile:
     def _get_memory_for_call(self, call: CallResult):
         if not self._trace_mem:
             return 0
-        snapshot = self._trace_mem_snapshot.filter_traces((tracemalloc.Filter(True, call.filename, lineno=call.lineno),))
+        snapshot = self._trace_mem_snapshot.filter_traces(
+            (tracemalloc.Filter(True, call.filename, lineno=call.lineno),)
+        )
 
-        for statistic in snapshot.statistics("lineno", True):
+        for statistic in snapshot.statistics("lineno", False):
             for frame in statistic.traceback:
                 if frame.filename == call.filename and frame.lineno == call.lineno:
                     return statistic.size
@@ -228,9 +238,11 @@ def print_result(profile: SimpleProfile):
 
 def profile(func):
     p = SimpleProfile(memory=True)
+
     def _func(*args, **kwargs):
         try:
             return p.run(func, *args, **kwargs)
         finally:
             print_result(p)
+
     return _func

@@ -1,5 +1,5 @@
 import re
-from typing import Awaitable, Callable, Dict, Iterator, List, Tuple, Type, Union
+from typing import Awaitable, Callable, Coroutine, Dict, Iterator, List, Tuple, Type, Union
 
 
 class ASGI2Protocol:
@@ -44,6 +44,7 @@ class ResponseProtocol:
 
 Response = Type[ResponseProtocol]
 Handler = Callable[[Request], Response]
+_Middleware = Callable[[Request, Handler], Response]
 Parser = Callable[[bytes], Request]
 
 CompiledRe = type(re.compile(""))

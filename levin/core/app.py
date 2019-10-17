@@ -1,5 +1,6 @@
-import asyncio
+import inspect
 from functools import partial
+from typing import Dict, List, Optional
 
 from .common import Request, Response
 from .component import Component, DisableComponentError, create_component_from
@@ -12,14 +13,14 @@ async def _handler(request: Request):
 
 async def call_or_await(func_or_coro, *args, **kwargs):
     result = func_or_coro(*args, **kwargs)
-    if asyncio.iscoroutine(result):
+    if inspect.iscoroutine(result):
         return await result
     return result
 
 
 class Application:
     def __init__(self, components, default_handler=_handler):
-        self._components = []
+        self._components: List[Component] = []
         self.handler = default_handler
         self.__start = False
         self._init_components(components)
@@ -40,7 +41,6 @@ class Application:
         for component in self._components[::-1]:
             if component.middleware is not None:
                 call_next = partial(component.middleware, call_next=call_next)
-                call_next.__code__ = component.middleware.__code__
                 call_next.component_name = component.name
         self.handler = partial(call_next, handler=self.handler)
 
@@ -54,7 +54,6 @@ class Application:
             except DisableComponentError:
                 self._components.remove(component)
 
-            # todo components commands
         self._create_handler()
 
     async def stop(self):
@@ -63,8 +62,25 @@ class Application:
         for component in self._components:
             await call_or_await(component.stop, self)
 
-    def run(self, port=8000, sub_apps=()):
+    def run(self, port=8000):
         run_app(self, port)
+
+    def configure(self, config: Dict):
+        for component_name, config in config.items():
+            component = self.get_component(component_name)
+            if not component:
+                print("Warning")
+                continue
+            component.configure(**config)
+
+    def get_component(self, component: str) -> Optional[Component]:
+        for _component in self._components:
+            if _component.name == component:
+                return _component
+
+    @property
+    def components(self):
+        return list(self._components)
 
     def __getattr__(self, item):
         for component in self._components:

@@ -14,7 +14,7 @@ def not_found_handler():
 
 def test_pattern_to_regexp():
     pattern = b"/order/{user}/{order}"
-    expect = b"/order/(?P<user>[-_a-zA-Z]+)/(?P<order>[-_a-zA-Z]+)"
+    expect = b"/order/(?P<user>[-_a-zA-Z0-9]+)/(?P<order>[-_a-zA-Z0-9]+)"
     result = RegexpCondition.pattern_to_regexp(pattern).pattern
     assert result == expect
 

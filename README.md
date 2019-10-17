@@ -1,14 +1,13 @@
 Todo: 
-* + http1.1 
-* http1 -> http2
 * logging
 * import ++  proxy  object
 * config and app configuration
-* api for request context
+* DB component
+* cache component
+* validation 
 
 Featches x§
 
-A
 * HTTP2 base 
 * Fully castomization 
 * middlewares support

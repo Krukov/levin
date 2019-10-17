@@ -30,7 +30,11 @@ class Parser:
             else:
                 body += line
         if path and method and protocol:
-            return b"", (Request(path=path, method=method, headers=tuple(headers), body=body),), False
+            return (
+                b"",
+                (Request(path=path, method=method, headers=tuple(headers), body=body, protocol=protocol),),
+                False,
+            )
         raise ParseError()
 
     @staticmethod

@@ -1,8 +1,8 @@
 import asyncio
 
 from levin.core.connection import Connection
-# from levin.core.parsers.http_tools import Parser
 from levin.core.parsers.http_simple import Parser as Http1Parser
+from levin.core.parsers.http_tools import Parser as Http1ParserHttpTools
 from levin.core.parsers.hyper import Parser as Http2Parser
 
 # https://medium.com/@pgjones/an-asyncio-socket-tutorial-5e6f3308b8b0
@@ -26,7 +26,7 @@ class Server:
         host: str = "127.0.0.1",
         port: int = 8000,
         connection_class=Connection,
-        parsers_class=(Http2Parser, Http1Parser),
+        parsers_class=(Http2Parser, Http1ParserHttpTools),
         loop=None,
     ):
         self._connection_class = connection_class

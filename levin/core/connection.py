@@ -7,6 +7,10 @@ from .common import ParseError, Request, Response
 response_500 = Response(status=500, body=b"Sorry")
 
 
+class CloseException(Exception):
+    pass
+
+
 class Connection:
     __slots__ = ("_transport", "_parsers", "_parser", "_futures", "_loop", "_handler")
 
@@ -24,11 +28,15 @@ class Connection:
         else:
             try:
                 exception = future.exception()
-            except (asyncio.CancelledError, asyncio.InvalidStateError) as exc:
+            except asyncio.InvalidStateError as exc:
                 exception = exc
+            except asyncio.CancelledError:  # connection lost
+                exception = None
+
             if exception:
                 traceback.print_exception(None, exception, exception.__traceback__)
-                self.write_response(response_500, request)
+                if self._transport and not self._transport.is_closing():
+                    self.write_response(response_500, request)
         self._futures.remove(future)
 
     def write(self, data):
@@ -47,15 +55,17 @@ class Connection:
         requests = ()
         close = True
         _data = None
-        for parser in self._parsers:
-            try:
-                _data, requests, close = parser.handle_request(data)
-            except ParseError as exc:
-                print(exc)
-                continue
-            else:
-                self._parser = parser
-                break
+        if self._parser:
+            _data, requests, close = self._parser.handle_request(data)
+        else:
+            for parser in self._parsers:
+                try:
+                    _data, requests, close = parser.handle_request(data)
+                except ParseError:
+                    continue
+                else:
+                    self._parser = parser
+                    break
 
         if _data:
             self.write(_data)
@@ -81,4 +91,4 @@ class Connection:
     def close(self):
         self._transport.close()
         for future in self._futures:
-            future.cancel()
+            future.set_exception(CloseException())

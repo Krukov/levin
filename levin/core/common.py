@@ -34,23 +34,29 @@ def create_headers_map(headers: Tuple) -> HeadersProxy:
 
 
 class Request:
-    __slots__ = ("path", "method", "body", "headers", "stream", "handler", "_scope")
+    __slots__ = ("path", "method", "body", "headers", "stream", "protocol", "_scope")
 
     def __init__(
-        self, path: bytes = b"/", method: bytes = b"GET", body: bytes = b"", headers: Tuple = (), stream: int = 0
+        self,
+        path: bytes = b"/",
+        method: bytes = b"GET",
+        body: bytes = b"",
+        headers: Tuple = (),
+        protocol: bytes = b"",
+        stream: int = 0,
     ):
         self.path = path
         self.method = method
         self.body = body
         self.headers = create_headers_map(headers)
         self.stream = stream
+        self.protocol = protocol
         self._scope = {}
-        self.handler = None
 
     def __getattr__(self, item):
         if item in Request.__slots__:
-            # todo: Normal exception
-            return Exception("WTF")
+            # it's happened on unpickle request (multiprocessing)
+            return None
         attr = self.get(item, default=empty)
         if attr is empty:
             raise AttributeError(f"Request has no attr {item} in scope")
@@ -66,9 +72,6 @@ class Request:
     def set(self, key, value):
         if key not in self._scope:
             self._scope[key] = value
-
-    # def cancel(self):
-    #     self._ = True
 
 
 class Response:

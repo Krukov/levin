@@ -1,5 +1,6 @@
 import logging
 
+from levin.core.common import Request, Response
 from levin.core.component import Component
 
 # TODO: format request and response on right way
@@ -8,19 +9,13 @@ from levin.core.component import Component
 class LoggerComponent(Component):
     name = "logger"
 
-    def __init__(
-        self,
-        logger_name=__name__,
-        logger=None,
-        request_level=logging.INFO,
-        response_level=logging.DEBUG,
-        message_format="%(direction)s %(method)s %(path)s %(stream)s ",
-    ):
-        self._logger = logger or logging.getLogger(logger_name)
-        self._request_level = request_level
-        self._response_level = response_level
-        self._format = message_format
-        self.name = self.name + "." + logger_name
+    level: int = logging.INFO
+    logger_name: str = __name__
+    message_format: str = '%(remote_addr)s  "%(method)s %(path)s %(protocol)s" %(status)s - %(body_size)s'
+
+    @property
+    def _logger(self):
+        return logging.getLogger(self.logger_name)
 
     def start(self, app):
         formatter = logging.Formatter(fmt="%(message)s")
@@ -30,28 +25,17 @@ class LoggerComponent(Component):
         self._logger.setLevel(logging.DEBUG)
         self._logger.debug("CONFIGURING LOGGER")
 
-    async def middleware(self, request, handler, call_next):
+    async def middleware(self, request: Request, handler, call_next) -> Response:
+        response: Response = await call_next(request, handler)
         self._logger.log(
-            self._request_level,
-            self._format,
+            self.level,
+            self.message_format,
             {
-                "direction": "->",
+                "status": response.status,
                 "method": request.method.decode(),
                 "path": request.path.decode(),
-                "stream": request.stream,
-                "request": id(request),
-            },
-        )
-        response = await call_next(request, handler)
-        self._logger.log(
-            self._response_level,
-            self._format,
-            {
-                "direction": f"<- {response.status}",
-                "method": request.method.decode(),
-                "path": request.path.decode(),
-                "stream": request.stream,
-                "request": id(request),
+                "protocol": request.protocol.decode(),
+                "body_size": len(response.body),
             },
         )
         return response
