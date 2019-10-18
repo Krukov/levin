@@ -11,6 +11,10 @@ async def _handler(request: Request):
     return Response(200, body=b"<html><head></head><body>LEVIN</body></html>")
 
 
+async def _call_next(request, handler):
+    return await handler(request)
+
+
 async def call_or_await(func_or_coro, *args, **kwargs):
     result = func_or_coro(*args, **kwargs)
     if inspect.iscoroutine(result):
@@ -88,6 +92,3 @@ class Application:
                 return component
         raise AttributeError(f"App has no component {item}")
 
-
-async def _call_next(request, handler):
-    return await handler(request)

@@ -12,12 +12,12 @@ class ProfileHandler(Component):
     name = "profile"
 
     threshold: float = 0.1
-    get_time: Callable = time.perf_counter
+    get_time: Callable = staticmethod(time.perf_counter)
     depth: int = 1
-    callback = print_result
+    callback = staticmethod(print_result)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self._targets = []
         self._lock = asyncio.Lock()
 

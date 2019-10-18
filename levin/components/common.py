@@ -57,7 +57,7 @@ class TimeLimit(Component):
 class PatchRequest(Component):
     name = "patch_request"
 
-    json_loads = json.loads
+    json_loads = staticmethod(json.loads)
     json_content_type = b"application/json"
 
     async def middleware(self, request: Request, handler, call_next):

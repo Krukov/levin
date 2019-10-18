@@ -11,7 +11,7 @@ class LoggerComponent(Component):
 
     level: int = logging.INFO
     logger_name: str = __name__
-    message_format: str = '%(remote_addr)s  "%(method)s %(path)s %(protocol)s" %(status)s - %(body_size)s'
+    message_format: str = '"%(method)s %(path)s %(protocol)s" %(status)s - %(body_size)s'
 
     @property
     def _logger(self):

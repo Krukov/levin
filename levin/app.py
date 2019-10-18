@@ -9,12 +9,12 @@ app = _Application(
         components.handle_error(),
         components.TimeLimit(),
         components.HttpRouter(),
-        components.ProfileHandler(),
         components.RunProcess(),
         components.SyncToAsync(),
         components.JsonFormat(),
         components.TextFormat(),
         components.TemplateFormat(),
+        components.ProfileHandler(),
     ]
 )
 

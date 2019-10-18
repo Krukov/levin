@@ -63,10 +63,10 @@ class EqualsCondition:
 class HttpRouter(Component):
     name = "route"
 
-    not_found_handler: Callable = _not_found_handler
+    not_found_handler: Callable = staticmethod(_not_found_handler)
 
-    def __init__(self, not_found_handler=_not_found_handler):
-        super().__init__(not_found_handler=not_found_handler)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self._routes: List[List[Callable[[Request], Union[bool, Dict]], Callable], ...] = []
 
     def clean(self):

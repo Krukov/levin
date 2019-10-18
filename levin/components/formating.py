@@ -1,7 +1,7 @@
 import json
 import os
 import string
-from typing import Callable, List, Tuple, Type
+from typing import Callable, Tuple, Type
 
 from levin.core.common import Response
 from levin.core.component import Component
@@ -16,10 +16,18 @@ def _default(obj):
 class JsonFormat(Component):
     name = "json_format"
 
-    json_dumps = json.dumps
-    default: Callable = _default
+    json_dumps = staticmethod(json.dumps)
+    default: Callable = staticmethod(_default)
     content_type: bytes = b"application/json"
     types_to_format: Tuple[Type] = (dict, list, tuple)
+
+    @staticmethod
+    def test():
+        return "test"
+
+    @property
+    def test_p(self):
+        return "test"
 
     async def middleware(self, request, handler, call_next):
         response = await call_next(request, handler)
