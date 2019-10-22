@@ -13,7 +13,6 @@ class Parser:
         pass
 
     def handle_request(self, data: bytes):
-
         method = path = protocol = _BLANK
         body = None
         headers = []

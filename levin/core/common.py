@@ -1,4 +1,5 @@
 from typing import Mapping, Tuple
+from weakref import proxy
 
 empty = object()
 
@@ -7,7 +8,7 @@ class ParseError(Exception):
     pass
 
 
-class HeadersProxy:
+class _HeadersProxy:
     __slots__ = ("__target",)
 
     def __init__(self, target: Mapping):
@@ -26,15 +27,25 @@ class HeadersProxy:
         return item.lower() in self.__target
 
 
-def create_headers_map(headers: Tuple) -> HeadersProxy:
+def _create_headers_map(headers: Tuple) -> _HeadersProxy:
     _headers = {}
     for name, value in headers:
         _headers.setdefault(name.lower(), []).append(value)
-    return HeadersProxy({name: b"; ".join(value) for name, value in _headers.items()})
+    return _HeadersProxy({name: b"; ".join(value) for name, value in _headers.items()})
+
+
+class _LazyAttr:
+    __slots__ = ("_func", )
+
+    def __init__(self, func):
+        self._func = func
+
+    def __call__(self, *args, **kwargs):
+        return self._func(*args, **kwargs)
 
 
 class Request:
-    __slots__ = ("path", "method", "body", "headers", "stream", "protocol", "_scope")
+    __slots__ = ("raw_path", "method", "body", "headers", "stream", "protocol", "_scope")
 
     def __init__(
         self,
@@ -45,10 +56,10 @@ class Request:
         protocol: bytes = b"",
         stream: int = 0,
     ):
-        self.path = path
+        self.raw_path = path
         self.method = method
         self.body = body
-        self.headers = create_headers_map(headers)
+        self.headers = _create_headers_map(headers)
         self.stream = stream
         self.protocol = protocol
         self._scope = {}
@@ -62,15 +73,21 @@ class Request:
             raise AttributeError(f"Request has no attr {item} in scope")
         return attr
 
+    @property
+    def path(self):
+        return self.get("path", self.raw_path)
+
     def get(self, item, default=None):
         attr = self._scope.get(item, default)
-        if callable(attr) and attr != default:
+        if callable(attr) and isinstance(attr, _LazyAttr):
             attr = attr(self)
             self._scope[item] = attr
         return attr
 
-    def set(self, key, value):
-        if key not in self._scope:
+    def set(self, key, value, lazy=False, rewrite=False):
+        if key not in self._scope or rewrite:
+            if lazy:
+                value = _LazyAttr(value)
             self._scope[key] = value
 
 

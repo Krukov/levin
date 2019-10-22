@@ -5,6 +5,7 @@ from typing import Callable, Tuple, Type
 
 from levin.core.common import Response
 from levin.core.component import Component
+from .cli import command
 
 
 def _default(obj):
@@ -21,20 +22,15 @@ class JsonFormat(Component):
     content_type: bytes = b"application/json"
     types_to_format: Tuple[Type] = (dict, list, tuple)
 
-    @staticmethod
-    def test():
-        return "test"
-
-    @property
-    def test_p(self):
-        return "test"
-
     async def middleware(self, request, handler, call_next):
         response = await call_next(request, handler)
         if isinstance(response, self.types_to_format):
-            data = self.json_dumps(response, default=self.default).encode()
+            if self.default:
+                data = self.json_dumps(response, default=self.default)
+            else:
+                data = self.json_dumps(response)
             response = Response(
-                status=request.get("status", 200), body=data, headers={b"content-type": self.content_type}
+                status=request.get("status", 200), body=data.encode(), headers={b"content-type": self.content_type}
             )
         return response
 
@@ -67,11 +63,11 @@ class TemplateFormat(Component):
             self.path = path
             self.context = context
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self._templates = {}
 
-    def start(self, app):
+    def init(self, app):
         for _dir in self.templates_dirs:
             for root, dirs, files in os.walk(_dir):
                 self._check_and_save(files, root)
@@ -81,23 +77,28 @@ class TemplateFormat(Component):
             if not _file.endswith(self.templates_formats):
                 continue
             with open(os.path.join(root, _file)) as fd:
-                self._templates[_file] = fd.read()
+                self._templates[(root, _file)] = fd.read()
+
+    def _get_template(self, name):
+        for root, _file in self._templates.keys():
+            if _file == name:
+                return self._templates[(root, _file)]
 
     def render(self, path, context: dict, request=None):
-        if path not in self._templates:
+        template = self._get_template(path)
+        if not template:
             raise Exception("Wrong template name")
         if request:
             context.update(request._scope)
 
         return (
-            string.Template(template=self._templates[path])
+            string.Template(template=template)
             .safe_substitute(**{k: v.decode() if isinstance(v, bytes) else v for k, v in context.items()})
             .encode()
         )
 
     async def middleware(self, request, handler, call_next):
         template = request.get("template")
-        request.set("render", lambda r: lambda path, context: self.render(path, context, r))
         response = await call_next(request, handler)
         if isinstance(response, self.Template):
             response = Response(
@@ -112,3 +113,7 @@ class TemplateFormat(Component):
                 headers={b"content-type": self.content_type},
             )
         return response
+
+    @command
+    def list(self):
+        return self._templates.keys()

@@ -47,7 +47,7 @@ class Parser(SimpleParser):
                         method=parser.get_method(),
                         headers=tuple(request.headers),
                         body=request.body,
-                        protocol=parser.get_http_version().encode(),
+                        protocol=b"HTTP/" + parser.get_http_version().encode(),
                     ),
                 ),
                 False,

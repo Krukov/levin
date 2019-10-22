@@ -1,7 +1,8 @@
+#!/usr/bin/env python
 import asyncio
 import time
 from levin import app
-
+import ujson
 import faulthandler
 # import uvloop
 # uvloop.install()
@@ -10,21 +11,44 @@ app.configure({
     "templates": {
         "path": "/"
     },
+    "json_format": {
+        "json_dumps": ujson.dumps,
+        "default": None,
+    },
+    "profile": {
+        # "enable": False,
+    },
+    "process_executor": {
+        "max_workers": 1
+    },
 })
 
 
 @app.route.get("/-/", name="root", status=201)
 async def root(request):
-    a = list(range(10000))
-    await asyncio.sleep(1)
+    a = list(range(100))
     return {"status": a}
 
 
-@app.route.get("/new/{user}/")
-def user(request):
+@app.route.get("/new/{user}/p", process=True)
+def userp(request):
+    return {"status": request.query_params.get("str", None)}
+
+
+def condition(*args, **kwargs):
+    return True
+
+
+@app.route.get("/new/{user}/", profile_condition=condition)
+async def user(request):
     a = list(range(10000))
-    time.sleep(1)
+    await asyncio.sleep(10)
     return {"status": request.get("user")}
+
+
+@app.route.get("/q/")
+def qwert(request):
+    return {"status": request.query_params}
 
 
 @app.route.get("/template/{user}/", template="index.html")
@@ -43,11 +67,11 @@ def user_template3(request):
 
 
 @app.route.post(b"/-/", )
-async def post_root(request):
+def post_root(request, process=True):
     """
     Create something
     """
-    await asyncio.sleep(1)
+    time.sleep(1)
     return {"status": "20"}
 
 
@@ -57,11 +81,6 @@ def del_root(request):
     return {"status": "20"}
 
 
-def main():
-    faulthandler.enable()
-    app.run(8000)
-
-
 if __name__ == '__main__':
+    faulthandler.enable()
     app.cli()
-    main()

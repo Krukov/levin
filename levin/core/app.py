@@ -37,6 +37,7 @@ class Application:
         if not isinstance(component, Component):
             component = create_component_from(component)
         self._components.insert(position or len(self._components), component)
+        component.init(self)
 
     add = _add_component  # public version
 
@@ -52,11 +53,14 @@ class Application:
         if self.__start:
             return
         self.__start = True
+        _components_to_remove = []
         for component in self._components:
             try:
-                await call_or_await(component.start, self)
+                await call_or_await(component._start, self)
             except DisableComponentError:
-                self._components.remove(component)
+                _components_to_remove.append(component)
+        for component in _components_to_remove:
+            self._components.remove(component)
 
         self._create_handler()
 
@@ -66,8 +70,8 @@ class Application:
         for component in self._components:
             await call_or_await(component.stop, self)
 
-    def run(self, port=8000):
-        run_app(self, port)
+    def run(self, host="0.0.0.0", port=8000):
+        run_app(self, host, port=port)
 
     def configure(self, config: Dict):
         for component_name, config in config.items():

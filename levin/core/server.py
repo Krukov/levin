@@ -6,6 +6,7 @@ from levin.core.parsers.http_tools import Parser as Http1ParserHttpTools
 from levin.core.parsers.hyper import Parser as Http2Parser
 
 # https://medium.com/@pgjones/an-asyncio-socket-tutorial-5e6f3308b8b0
+# https://hpbn.co/http2/
 # https://ruslanspivak.com/lsbaws-part3/
 # https://github.com/pgjones/hypercorn
 # https://github.com/python-hyper/hyper-h2
@@ -61,8 +62,10 @@ class Server:
 
 
 async def _manage(servers_async, servers, stop_event: asyncio.Event):
-    await stop_event.wait()
-
+    try:
+        await stop_event.wait()
+    except:
+        pass
     for server in servers:
         await server.stop()
     for server in servers_async:
@@ -99,8 +102,8 @@ def run(*servers, loop=None, stop_event=None, wait=True):
             loop.close()
 
 
-def run_app(app, port):
-    return run(Server(app, host="0.0.0.0", port=port))
+def run_app(app, host: str = "0.0.0.0", port: int = 8000):
+    return run(Server(app, host=host, port=port))
 
 
 def run_apps(*args):

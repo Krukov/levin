@@ -16,7 +16,7 @@ def command(method):
 class Cli(Component):
     name = "cli"
 
-    def __init__(self, app):
+    def init(self, app):
         self.app = app
 
     @staticmethod
@@ -34,7 +34,13 @@ class Cli(Component):
         for param in inspect.signature(command).parameters.values():
             if param.annotation is param.empty:
                 continue
-            if issubclass(param.annotation, bool):
+            if inspect.isclass(param.annotation):
+                yield from self._get_for_type(param.annotation, param)
+            elif hasattr(param.annotation, "__args__"):
+                yield from self._get_for_type(param.annotation.__args__[0], param)
+
+    def _get_for_type(self, _type, param):
+            if issubclass(_type, bool):
                 yield {"dest": f"--{param.name}", "default": param.default, "required": False, "action": "store_true"}
 
             elif param.default is not param.empty:
@@ -42,11 +48,11 @@ class Cli(Component):
                     "option_strings": f"{param.name}",
                     "dest": param.name,
                     "default": param.default,
-                    "type": param.annotation,
+                    "type": _type,
                     "nargs": "?",
                 }
             else:
-                yield {"option_strings": f"{param.name}", "dest": param.name, "type": param.annotation}
+                yield {"option_strings": f"{param.name}", "dest": param.name, "type": _type}
 
     def _cli_root(self, argv: List[str]):
         parser = argparse.ArgumentParser(description="Manage app", prog=__name__)
@@ -90,3 +96,22 @@ class Cli(Component):
             self._cli_root(argv)
         else:
             self._cli_component(argv)
+
+    @command
+    def run(self, port: int = 8000, host: str = "0.0.0.0"):
+        """Run server for current app"""
+        self.app.run(host, port)
+
+    @command
+    def components(self, values: bool = False, component: Optional[str] = None):
+        """Print info for installed components"""
+        components = ""
+        for _component in self.app.components:
+            if component and _component.name != component:
+                continue
+            components += f"\n{_component.name}: "
+            if values or component:
+                components += "\n" + "\n ".join([f"\t{param} = {getattr(_component, param)}" for param in _component.get_configure_params()])
+            else:
+                components += "\t" + ", ".join(_component.get_configure_params())
+        return components

@@ -123,7 +123,7 @@ class SimpleProfile:
         frame_line = frame.f_code.co_firstlineno
         return CallResult(lineno=lineno, filename=filename, start=time.time(), depth=depth, caller_lineno=frame_line)
 
-    def trace(self, frame, event: str, arg):
+    def _trace(self, frame, event: str, arg):
         if frame is None:
             return self.trace
         # SKIP DEPTH IF IT == 1
@@ -141,35 +141,46 @@ class SimpleProfile:
         else:
             call = self._get_the_same_call(target_frame, depth)
             call.end = time.time()
-        return self.trace
+        return self._trace
 
-    def run(self, func, *args, **kwargs):
-        func_alias = self._get_code_alias(
-            getattr(func, "__code__", getattr(getattr(func, "func", None), "__code__", None))
-        )
-        self._target_func.append(func_alias)
-        self._save_function(func)
+    def trace(self, func):
         self._orig_trace = sys.getprofile()
         if asyncio.iscoroutinefunction(func):
-            return self._run_async(func, *args, **kwargs)
-        sys.setprofile(self.trace)
-        if self._trace_mem:
-            tracemalloc.clear_traces()
-            tracemalloc.start()
+            async def _wrap(*args, **kwargs):
+                return await self._run_async(func, *args, **kwargs)
+        else:
+            def _wrap(*args, **kwargs):
+                return self._run(func, *args, **kwargs)
+        return _wrap
+
+    def run(self, func, *args, **kwargs):
+        self.add_target(func)
+        return self.trace(func, *args, **kwargs)
+        
+    def add_target(self, func):
+        func_alias = self._get_code_alias(func.__code__)
+        self._target_func.append(func_alias)
+        self._save_function(func)
+
+    def _run(self, func, *args, **kwargs):
+        self.start_trace()
         try:
             return func(*args, **kwargs)
         finally:
             self.stop()
 
     async def _run_async(self, func, *args, **kwargs):
-        sys.setprofile(self.trace)
-        if self._trace_mem:
-            tracemalloc.clear_traces()
-            tracemalloc.start()
+        self.start_trace()
         try:
             return await func(*args, **kwargs)
         finally:
             self.stop()
+    
+    def start_trace(self):
+        sys.setprofile(self._trace)
+        if self._trace_mem:
+            tracemalloc.clear_traces()
+            tracemalloc.start()
 
     def stop(self):
         if self._stop:

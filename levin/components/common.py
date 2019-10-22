@@ -1,6 +1,7 @@
 import asyncio
 import json
 import traceback
+from urllib.parse import urlparse, parse_qs
 
 from levin.core.common import Request, Response
 from levin.core.component import Component
@@ -15,7 +16,7 @@ def _default_on_error(request, exception):
 
 
 def handle_error(on_error=_default_on_error):
-    async def middleware(request: Request, handler, call_next):
+    async def _handle_error(request: Request, handler, call_next):
         try:
             return await call_next(request, handler)
         except Exception as exc:
@@ -24,7 +25,7 @@ def handle_error(on_error=_default_on_error):
                 response = await response
             return response
 
-    return middleware
+    return _handle_error
 
 
 class TimeLimit(Component):
@@ -59,29 +60,50 @@ class PatchRequest(Component):
 
     json_loads = staticmethod(json.loads)
     json_content_type = b"application/json"
+    parse_url = staticmethod(urlparse)
+    parse_query_params = staticmethod(parse_qs)
 
-    async def middleware(self, request: Request, handler, call_next):
-        request.set("data", self.data)
-        request.set("json", self.json)
-        request.set("content_type", self.content_type)
-        request.set("encoding", self.encoding)
-        return await call_next(request, handler)
+    def middleware(self, request: Request, handler, call_next):
+        request.set("data", self.data, lazy=True)
+        request.set("path", self.path, lazy=True)
+        request.set("query_params", self.query_params, lazy=True)
+        request.set("json", self.json, lazy=True)
+        request.set("content_type", self.content_type, lazy=True)
+        request.set("encoding", self.encoding, lazy=True)
+        return call_next(request, handler)
 
-    def json(self, request) -> dict:
+    def json(self, request: Request) -> dict:
         if request.content_type == self.json_content_type:
             return self.json_loads(request.body.decode(request.encoding))
 
     def data(self, request) -> dict:
         pass  # todo: parse multipart form data
 
+    def _parse_url(self, request):
+        parsed_url = self.parse_url(request.raw_path)
+        request.set("path", parsed_url.path)
+        qs = self.parse_query_params(parsed_url.query)
+        request.set("query_params", qs)
+        return parsed_url.path, qs
+
+    def path(self, request: Request):
+        if b"?" not in request.raw_path:
+            return request.raw_path
+        return self._parse_url(request)[0]
+
+    def query_params(self, request: Request):
+        if b"?" not in request.raw_path:
+            return {}
+        return self._parse_url(request)[1]
+
     @staticmethod
-    def content_type(request) -> bytes:
+    def content_type(request: Request) -> bytes:
         content_type = request.headers.get(CONTENT_TYPE_HEADER)
         if content_type:
             return content_type.split(b";", 1)[0]
 
     @staticmethod
-    def encoding(request) -> str:
+    def encoding(request: Request) -> str:
         content_type = request.headers.get(CONTENT_TYPE_HEADER)
         if not content_type or b";" not in content_type:
             return DEFAULT_ENCODING

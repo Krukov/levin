@@ -1,11 +1,18 @@
 import asyncio
 import time
-from functools import partial
 from typing import Callable
 
 from levin.core.common import Request
 from levin.core.component import Component
 from levin.utils.profile import SimpleProfile, print_result
+
+
+def _default_profile_condition(request: Request, time_spend: float, threshold: float):
+    return time_spend > threshold
+
+
+def _request_hash(request: Request):
+    return request.raw_path + request.method
 
 
 class ProfileHandler(Component):
@@ -15,21 +22,21 @@ class ProfileHandler(Component):
     get_time: Callable = staticmethod(time.perf_counter)
     depth: int = 1
     callback = staticmethod(print_result)
+    profile_condition = staticmethod(_default_profile_condition)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._targets = []
         self._lock = asyncio.Lock()
 
-    @staticmethod
-    def request_hash(request: Request):
-        return request.path + request.method
-
     async def middleware(self, request: Request, handler, call_next):
-        if self.request_hash(request) in self._targets and not self._lock.locked():
+        if _request_hash(request) in self._targets and not self._lock.locked():
             async with self._lock:
-                profile = SimpleProfile(depth=self.depth, memory=True)
-                handler = partial(profile.run, handler)
+                self._targets.remove(_request_hash(request))
+
+                profile = SimpleProfile(depth=request.get("depth", self.depth), memory=True)
+                profile.add_target(handler)
+                handler = profile.trace(handler)
                 try:
                     return await call_next(request, handler)
                 finally:
@@ -38,5 +45,5 @@ class ProfileHandler(Component):
         try:
             return await call_next(request, handler)
         finally:
-            if (self.get_time() - start) > self.threshold:
-                self._targets.append(self.request_hash(request))
+            if request.get("profile_condition", self.profile_condition)(request, self.get_time() - start, self.threshold):
+                self._targets.append(_request_hash(request))
