@@ -9,14 +9,12 @@ import faulthandler
 
 app.configure({
     "templates": {
-        "path": "/"
+        "path": "/",
+        "enable": False,
     },
     "json_format": {
         "json_dumps": ujson.dumps,
         "default": None,
-    },
-    "profile": {
-        # "enable": False,
     },
     "process_executor": {
         "max_workers": 1

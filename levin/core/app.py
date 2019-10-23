@@ -34,6 +34,8 @@ class Application:
             self._add_component(component)
 
     def _add_component(self, component, position=None):
+        if isinstance(component, str):
+            pass  # todo: import from string and init
         if not isinstance(component, Component):
             component = create_component_from(component)
         self._components.insert(position or len(self._components), component)

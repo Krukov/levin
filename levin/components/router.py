@@ -96,6 +96,20 @@ class HttpRouter(Component):
             return f"{base}\n\n{inspect.getdoc(handler)}"
         return base
 
+    @command
+    def list(self, method: Optional[str] = None, code: bool = False):
+        """
+        Return List of routes
+        """
+        lines = []
+        for condition, handler in self._routes:
+            if method and condition.method != method:
+                continue
+            lines.append(f"{condition.method.decode()} {condition.pattern.decode()} -> {handler.__name__} in {inspect.getsourcefile(handler)}:{handler.__code__.co_firstlineno}")
+            if code:
+                lines.append(inspect.getsource(handler))
+        return "\n".join(lines)
+
     def add(self, method: Union[str, bytes], pattern: typing.Pattern, handler: Callable, **meta):
         if isinstance(method, str):
             method = method.encode()
