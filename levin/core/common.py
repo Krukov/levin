@@ -1,7 +1,6 @@
 from typing import Mapping, Tuple
-from weakref import proxy
 
-empty = object()
+EMPTY = object()
 
 
 class ParseError(Exception):
@@ -35,7 +34,7 @@ def _create_headers_map(headers: Tuple) -> _HeadersProxy:
 
 
 class _LazyAttr:
-    __slots__ = ("_func", )
+    __slots__ = ("_func",)
 
     def __init__(self, func):
         self._func = func
@@ -68,8 +67,8 @@ class Request:
         if item in Request.__slots__:
             # it's happened on unpickle request (multiprocessing)
             return None
-        attr = self.get(item, default=empty)
-        if attr is empty:
+        attr = self.get(item, default=EMPTY)
+        if attr is EMPTY:
             raise AttributeError(f"Request has no attr {item} in scope")
         return attr
 

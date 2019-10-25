@@ -45,5 +45,7 @@ class ProfileHandler(Component):
         try:
             return await call_next(request, handler)
         finally:
-            if request.get("profile_condition", self.profile_condition)(request, self.get_time() - start, self.threshold):
+            if request.get("profile_condition", self.profile_condition)(
+                request, self.get_time() - start, self.threshold
+            ):
                 self._targets.append(_request_hash(request))

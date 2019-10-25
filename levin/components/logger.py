@@ -1,10 +1,17 @@
 import logging
 import time
+from logging.config import dictConfig
 
 from levin.core.common import Request, Response
 from levin.core.component import Component
 
-# TODO: format request and response on right way
+DEFAULT_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": True,
+    "formatters": {"default": {"format": "[%(asctime)s %(levelname)s] | %(name)s | %(message)s"}},
+    "handlers": {"stdout": {"level": "DEBUG", "class": "logging.StreamHandler", "formatter": "default"}},
+    "loggers": {__name__.split(".")[0]: {"handlers": ["stdout"], "level": "INFO"}},
+}
 
 
 class LoggerComponent(Component):
@@ -13,18 +20,19 @@ class LoggerComponent(Component):
     level: int = logging.INFO
     logger_name: str = __name__
     message_format: str = '"%(method)s %(path)s %(protocol)s" %(status)s - %(body_size)s - %(time)s'
+    logger_config: dict = DEFAULT_CONFIG
+    extra = {}
 
-    @property
-    def _logger(self):
-        return logging.getLogger(self.logger_name)
+    def init(self, app):
+        if self.logger_config:
+            dictConfig(self.logger_config)
+        self._logger = logging.getLogger(self.logger_name)
 
     def start(self, app):
-        formatter = logging.Formatter(fmt="%(message)s")
-        handler = logging.StreamHandler()
-        handler.setFormatter(formatter)
-        self._logger.addHandler(handler)
-        self._logger.setLevel(logging.DEBUG)
-        self._logger.debug("CONFIGURING LOGGER")
+        self._logger.info("Start server")
+
+    def stop(self, app):
+        self._logger.info("Server stop")
 
     async def middleware(self, request: Request, handler, call_next) -> Response:
         start = time.perf_counter()
@@ -38,7 +46,8 @@ class LoggerComponent(Component):
                 "path": request.raw_path.decode(),
                 "protocol": request.protocol.decode(),
                 "body_size": len(response.body),
-                "time": str(time.perf_counter() - start)[:6]
+                "time": str(time.perf_counter() - start)[:6],
             },
+            extra=self.extra,
         )
         return response

@@ -33,7 +33,7 @@ format: black isort
 
 .PHONY: pylint
 pylint:
-	pylint $(SRC) tests --reports=n --max-line-length=$(LENGTH)
+	pylint $(SRC) --reports=n --max-line-length=$(LENGTH)
 
 .PHONY: isort
 isort:

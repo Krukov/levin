@@ -40,7 +40,7 @@ class Parser:
     def _parse_first_line(line: bytes) -> [bytes, bytes, bytes]:
         segments = line.split(b" ")
         if len(segments) != 3 or b"HTTP" not in segments[2]:
-            raise Exception()
+            raise ParseError()
         method, path, version = segments
         return method.strip(), path.strip(), version.strip()
 

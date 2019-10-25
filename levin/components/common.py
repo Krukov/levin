@@ -1,7 +1,8 @@
 import asyncio
 import json
 import traceback
-from urllib.parse import urlparse, parse_qs
+from typing import Optional, Dict
+from urllib.parse import parse_qs, urlparse
 
 from levin.core.common import Request, Response
 from levin.core.component import Component
@@ -15,17 +16,18 @@ def _default_on_error(request, exception):
     return Response(status=500, body=traceback.format_exc().encode())
 
 
-def handle_error(on_error=_default_on_error):
-    async def _handle_error(request: Request, handler, call_next):
+class ErrorHandle(Component):
+    name = "error_handle"
+    on_error = staticmethod(_default_on_error)
+
+    async def middleware(self, request: Request, handler, call_next):
         try:
             return await call_next(request, handler)
         except Exception as exc:
-            response = on_error(request, exc)
+            response = self.on_error(request, exc)
             if asyncio.iscoroutine(response):
                 response = await response
             return response
-
-    return _handle_error
 
 
 class TimeLimit(Component):
@@ -72,9 +74,10 @@ class PatchRequest(Component):
         request.set("encoding", self.encoding, lazy=True)
         return call_next(request, handler)
 
-    def json(self, request: Request) -> dict:
+    def json(self, request: Request) -> Optional[dict]:
         if request.content_type == self.json_content_type:
             return self.json_loads(request.body.decode(request.encoding))
+        return None
 
     def data(self, request) -> dict:
         pass  # todo: parse multipart form data
@@ -82,25 +85,26 @@ class PatchRequest(Component):
     def _parse_url(self, request):
         parsed_url = self.parse_url(request.raw_path)
         request.set("path", parsed_url.path)
-        qs = self.parse_query_params(parsed_url.query)
-        request.set("query_params", qs)
-        return parsed_url.path, qs
+        query_params = self.parse_query_params(parsed_url.query)
+        request.set("query_params", query_params)
+        return parsed_url.path, query_params
 
-    def path(self, request: Request):
+    def path(self, request: Request) -> bytes:
         if b"?" not in request.raw_path:
             return request.raw_path
         return self._parse_url(request)[0]
 
-    def query_params(self, request: Request):
+    def query_params(self, request: Request) -> Dict[str, str]:
         if b"?" not in request.raw_path:
             return {}
         return self._parse_url(request)[1]
 
     @staticmethod
-    def content_type(request: Request) -> bytes:
+    def content_type(request: Request) -> Optional[bytes]:
         content_type = request.headers.get(CONTENT_TYPE_HEADER)
         if content_type:
             return content_type.split(b";", 1)[0]
+        return None
 
     @staticmethod
     def encoding(request: Request) -> str:
@@ -108,9 +112,7 @@ class PatchRequest(Component):
         if not content_type or b";" not in content_type:
             return DEFAULT_ENCODING
         for meta in content_type.split(b";")[1:]:
-            if b"=" not in meta:
+            if b"=" not in meta or meta.strip().split(b"=", 1)[0].strip() != b"charset":
                 continue
-            key, value = meta.strip().split(b"=", 1)
-            if key.strip() == b"charset":
-                return value.strip().lower().decode()
+            return meta.strip().split(b"=", 1)[0].strip().lower().decode()
         return DEFAULT_ENCODING

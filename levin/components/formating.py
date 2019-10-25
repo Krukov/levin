@@ -3,9 +3,9 @@ import os
 import string
 from typing import Callable, Tuple, Type
 
+from .cli import command
 from levin.core.common import Response
 from levin.core.component import Component
-from .cli import command
 
 
 def _default(obj):

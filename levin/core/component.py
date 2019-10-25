@@ -1,5 +1,5 @@
-from typing import Awaitable, Callable, Optional, Union
 import inspect
+from typing import Awaitable, Callable, Optional, Union
 
 
 class DisableComponentError(Exception):
@@ -25,7 +25,12 @@ class Component:
 
     def get_configure_params(self):
         for param in vars(self.__class__):
-            if param.startswith("_") or param in ("name", "middleware") or isinstance(getattr(self.__class__, param), property) or inspect.ismethod(getattr(self, param)):
+            if (
+                param.startswith("_")
+                or param in ("name", "middleware")
+                or isinstance(getattr(self.__class__, param), property)
+                or inspect.ismethod(getattr(self, param))
+            ):
                 continue
             yield param
         yield "enable"

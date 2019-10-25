@@ -34,14 +34,12 @@ def userp(request):
 
 
 def condition(*args, **kwargs):
-    return True
+    return False
 
 
-@app.route.get("/new/{user}/", profile_condition=condition)
+@app.route.get("/new/{user}/", profile_condition=condition, name="user")
 async def user(request):
-    a = list(range(10000))
-    await asyncio.sleep(10)
-    return {"status": request.get("user")}
+    return {"status": request.get("user"), "url": app.route.url("user", user="test")}
 
 
 @app.route.get("/q/")

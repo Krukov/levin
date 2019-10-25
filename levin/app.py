@@ -7,7 +7,7 @@ app = _Application(
     components=[
         components.PatchRequest(),
         components.LoggerComponent(),
-        components.handle_error(),
+        components.ErrorHandle(),
         components.TimeLimit(),
         components.HttpRouter(),
         components.RunProcess(),
@@ -16,7 +16,6 @@ app = _Application(
         components.JsonFormat(),
         components.TextFormat(),
         components.TemplateFormat(),
-
         components.Cli(),
     ]
 )

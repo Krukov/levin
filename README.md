@@ -9,9 +9,9 @@ Handlers are the basis of any modern framework. How they are used and how framew
 Levin makes it possible to influence the api handlers and modify the framework
 
 ### Components
-The Application are determined by components and control livecycle of this components.
+The Application are determined by components and control lifecycle of this components.
 Component have customizable options (settings), middleware, can path request object, inject their own api to the application,  and provide management commands
-Live cycle:
+Lifecycle:
 
 Application create -> component init -> component configure -> app start -> component start -> app handle request -> component middleware -> app stop -> component stop
 component init -> component configure -> component start -> component handle request -> component stop
@@ -105,6 +105,7 @@ if __name__ == '__main__':
 
 Todo: 
 * logging
+* add component by path
 * import ++  proxy  object
 * client ip and proxy info
 * asgi support

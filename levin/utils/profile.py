@@ -60,12 +60,10 @@ class SimpleProfile:
 
     CALL = "call"
     C_CALL = "c_call"
-    RETURN = "return"
     C_RETURN = "c_return"
     EXCEPTION = "c_exception"
     C_CALLS = (C_RETURN, EXCEPTION, C_CALL)
     CALLS = (C_CALL, CALL)
-    RETURNS = (C_RETURN, RETURN, EXCEPTION)
 
     def __init__(self, depth: int = 1, memory: bool = False):
         self._calls: List[CallResult] = []  # Storage for line call result
@@ -86,24 +84,30 @@ class SimpleProfile:
             return frame
         return frame.f_back
 
-    def _get_current_depth(self, event, frame):
-        frame = self._get_event_frame(event, frame)
-        code_alias = self._get_code_alias(frame.f_code)
+    def _save_frame(self, frame):
         if len(self._target_func) != self._depth and self._get_code_alias(frame.f_back.f_code) in self._target_func:
             self._target_func.append(self._get_code_alias(frame.f_code))
             self._save_function(frame.f_code)
 
+    def _get_depth_at_recursion(self, mother_frame, recursion_depth):
+        i = 0
+        while self._get_code_alias(mother_frame.f_code) == self._get_code_alias(
+                mother_frame.f_back.f_code):
+            i += 1
+            mother_frame = mother_frame.f_back
+        if i >= recursion_depth or i == 0:
+            return
+        return i
+
+    def _get_current_depth(self, event, frame):
+        frame = self._get_event_frame(event, frame)
+        code_alias = self._get_code_alias(frame.f_code)
+        self._save_frame(frame)
+
         if code_alias in self._target_func:
             indexes = [i for i, func in enumerate(self._target_func) if func == code_alias]
             if len(indexes) > 1:  # recursion
-                mother_frame = frame
-                i = 0
-                while self._get_code_alias(mother_frame.f_code) == self._get_code_alias(mother_frame.f_back.f_code):
-                    i += 1
-                    mother_frame = mother_frame.f_back
-                if i >= len(indexes) or i == 0:
-                    return
-                return i
+                return self._get_depth_at_recursion(frame, len(indexes))
             return indexes.pop() + 1
 
     def _get_the_same_call(self, frame, depth):
@@ -133,30 +137,37 @@ class SimpleProfile:
         target_frame = self._get_event_frame(event, frame)
 
         if event in self.CALLS:
-            call = self._get_the_same_call(target_frame, depth)
-            if not call:
-                self._calls.append(self._create_call_from(target_frame, depth))
-            else:
-                call.ncalls += 1
+            self._trace_call(target_frame, depth)
         else:
             call = self._get_the_same_call(target_frame, depth)
             call.end = time.time()
         return self._trace
 
+    def _trace_call(self, target_frame, depth):
+        call = self._get_the_same_call(target_frame, depth)
+        if not call:
+            self._calls.append(self._create_call_from(target_frame, depth))
+        else:
+            call.ncalls += 1
+
     def trace(self, func):
         self._orig_trace = sys.getprofile()
         if asyncio.iscoroutinefunction(func):
+
             async def _wrap(*args, **kwargs):
                 return await self._run_async(func, *args, **kwargs)
+
         else:
+
             def _wrap(*args, **kwargs):
                 return self._run(func, *args, **kwargs)
+
         return _wrap
 
     def run(self, func, *args, **kwargs):
         self.add_target(func)
-        return self.trace(func, *args, **kwargs)
-        
+        return self.trace(func)(*args, **kwargs)
+
     def add_target(self, func):
         func_alias = self._get_code_alias(func.__code__)
         self._target_func.append(func_alias)
@@ -175,7 +186,7 @@ class SimpleProfile:
             return await func(*args, **kwargs)
         finally:
             self.stop()
-    
+
     def start_trace(self):
         sys.setprofile(self._trace)
         if self._trace_mem:
@@ -245,15 +256,3 @@ def print_result(profile: SimpleProfile):
             print(f"{line.lineno}: {line.code} \t <- {line.time}s; {line.mem}B nc {line.ncalls}")
         else:
             print(f"{line.lineno}: {line.code}")
-
-
-def profile(func):
-    p = SimpleProfile(memory=True)
-
-    def _func(*args, **kwargs):
-        try:
-            return p.run(func, *args, **kwargs)
-        finally:
-            print_result(p)
-
-    return _func

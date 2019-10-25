@@ -1,14 +1,15 @@
 import asyncio
-from unittest.mock import Mock
 
 import pytest
 
+from levin.core.app import Application
 from levin.core.server import Server, run
+
+app = Application()
 
 
 @pytest.fixture(scope="session")
 def server():
-    app = Mock()
     loop = asyncio.new_event_loop()
     s = Server(app=app, host="127.0.0.1", port=8011, loop=loop)
     stop_event = asyncio.Event(loop=loop)

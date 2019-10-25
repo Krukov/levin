@@ -1,7 +1,7 @@
 import argparse
 import inspect
 import sys
-from typing import *
+from typing import Callable, Awaitable, Iterable, Optional, Union, List, Dict
 
 from levin.core.component import Component
 
@@ -40,19 +40,19 @@ class Cli(Component):
                 yield from self._get_for_type(param.annotation.__args__[0], param)
 
     def _get_for_type(self, _type, param):
-            if issubclass(_type, bool):
-                yield {"dest": f"--{param.name}", "default": param.default, "required": False, "action": "store_true"}
+        if issubclass(_type, bool):
+            yield {"dest": f"--{param.name}", "default": param.default, "required": False, "action": "store_true"}
 
-            elif param.default is not param.empty:
-                yield {
-                    "option_strings": f"{param.name}",
-                    "dest": param.name,
-                    "default": param.default,
-                    "type": _type,
-                    "nargs": "?",
-                }
-            else:
-                yield {"option_strings": f"{param.name}", "dest": param.name, "type": _type}
+        elif param.default is not param.empty:
+            yield {
+                "option_strings": f"{param.name}",
+                "dest": param.name,
+                "default": param.default,
+                "type": _type,
+                "nargs": "?",
+            }
+        else:
+            yield {"option_strings": f"{param.name}", "dest": param.name, "type": _type}
 
     def _cli_root(self, argv: List[str]):
         parser = argparse.ArgumentParser(description="Manage app", prog=__name__)
@@ -87,7 +87,9 @@ class Cli(Component):
             parser.print_help()
         else:
             args = vars(parser.parse_args(argv[1:]))
-            print(self._get_command(component, argv[1])(**args))
+            result = self._get_command(component, argv[1])(**args)
+            if result:
+                print(result)
 
     def __call__(self, argv: List[str] = sys.argv[1:]):
         commands = len([_ for _ in argv if not _.startswith("-")])
@@ -111,7 +113,9 @@ class Cli(Component):
                 continue
             components += f"\n{_component.name}: "
             if values or component:
-                components += "\n" + "\n ".join([f"\t{param} = {getattr(_component, param)}" for param in _component.get_configure_params()])
+                components += "\n" + "\n ".join(
+                    [f"\t{param} = {getattr(_component, param)}" for param in _component.get_configure_params()]
+                )
             else:
                 components += "\t" + ", ".join(_component.get_configure_params())
         return components

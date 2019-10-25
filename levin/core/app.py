@@ -23,7 +23,7 @@ async def call_or_await(func_or_coro, *args, **kwargs):
 
 
 class Application:
-    def __init__(self, components, default_handler=_handler):
+    def __init__(self, components=(), default_handler=_handler):
         self._components: List[Component] = []
         self.handler = default_handler
         self.__start = False
@@ -97,4 +97,3 @@ class Application:
             if component.name == item:
                 return component
         raise AttributeError(f"App has no component {item}")
-

@@ -64,7 +64,7 @@ class Server:
 async def _manage(servers_async, servers, stop_event: asyncio.Event):
     try:
         await stop_event.wait()
-    except:
+    except Exception:
         pass
     for server in servers:
         await server.stop()

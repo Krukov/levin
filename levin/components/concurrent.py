@@ -23,6 +23,7 @@ class _Executor(Component):
     def _call(self, handler):
         async def _handler(request):
             return await asyncio.get_running_loop().run_in_executor(self._executor, handler, request)
+
         return _handler
 
     async def middleware(self, request, handler, call_next):

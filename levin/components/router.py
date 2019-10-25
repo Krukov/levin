@@ -88,7 +88,10 @@ class HttpRouter(Component):
         pattern = ""
         if "pattern" in conditions_result:
             pattern = f"with pattern \"{conditions_result['pattern'].decode()}\""
-        base = f'Find handler "{handler.__name__}" {pattern} in {inspect.getsourcefile(handler)}:{handler.__code__.co_firstlineno} '
+        base = (
+            f'Find handler "{handler.__name__}" {pattern} in '
+            f"{inspect.getsourcefile(handler)}:{handler.__code__.co_firstlineno} "
+        )
         if code:
             code = inspect.getsource(handler)
             return f"{base}\n\n{code}"
@@ -105,7 +108,10 @@ class HttpRouter(Component):
         for condition, handler in self._routes:
             if method and condition.method != method:
                 continue
-            lines.append(f"{condition.method.decode()} {condition.pattern.decode()} -> {handler.__name__} in {inspect.getsourcefile(handler)}:{handler.__code__.co_firstlineno}")
+            lines.append(
+                f"{condition.method.decode()} {condition.pattern.decode()} -> {handler.__name__} "
+                f"in {inspect.getsourcefile(handler)}:{handler.__code__.co_firstlineno}"
+            )
             if code:
                 lines.append(inspect.getsource(handler))
         return "\n".join(lines)
@@ -119,6 +125,12 @@ class HttpRouter(Component):
             self._routes.append((RegexpCondition(method, pattern, meta), handler))
         else:
             self._routes.append((EqualsCondition(method, pattern, meta), handler))
+
+    def url(self, name, **kwargs):
+        for condition, _ in self._routes:
+            if condition._meta.get("name", "") == name:
+                print(condition.pattern)
+                return condition.pattern.decode().replace("\\", "").format(**kwargs)
 
     def route(self, path, method="GET", **meta):
         def _decorator(handler):
