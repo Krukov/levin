@@ -29,18 +29,21 @@ class ProfileHandler(Component):
         self._targets = []
         self._lock = asyncio.Lock()
 
+    async def _run_with_profile(self, request: Request, handler, call_next):
+        async with self._lock:
+            self._targets.remove(_request_hash(request))
+
+            profile = SimpleProfile(depth=request.get("depth", self.depth), memory=True)
+            profile.add_target(handler)
+            handler = profile.trace(handler)
+            try:
+                return await call_next(request, handler)
+            finally:
+                self.callback(profile)
+
     async def middleware(self, request: Request, handler, call_next):
         if _request_hash(request) in self._targets and not self._lock.locked():
-            async with self._lock:
-                self._targets.remove(_request_hash(request))
-
-                profile = SimpleProfile(depth=request.get("depth", self.depth), memory=True)
-                profile.add_target(handler)
-                handler = profile.trace(handler)
-                try:
-                    return await call_next(request, handler)
-                finally:
-                    self.callback(profile)
+            return await self._run_with_profile(request, handler, call_next)
         start = self.get_time()
         try:
             return await call_next(request, handler)

@@ -26,7 +26,7 @@ def _slash_append(value: bytes) -> bytes:
 class RegexpCondition:
     def __init__(self, method: bytes, pattern: typing.Pattern, meta: Dict):
         self.method = method
-        self._meta = meta
+        self.meta = meta
         if isinstance(pattern, bytes):
             self.pattern = pattern
             self._regexp = self.pattern_to_regexp(_slash_append(pattern))
@@ -39,7 +39,7 @@ class RegexpCondition:
             return False
         match = self._regexp.fullmatch(request.path)
         if match:
-            return {**match.groupdict(), "pattern": self.pattern, **self._meta}
+            return {**match.groupdict(), "pattern": self.pattern, **self.meta}
         return False
 
     @staticmethod
@@ -61,6 +61,7 @@ class EqualsCondition:
 
 
 class HttpRouter(Component):
+    # pylint: disable=too-many-public-methods
     name = "route"
 
     not_found_handler: Callable = staticmethod(_not_found_handler)
@@ -128,9 +129,9 @@ class HttpRouter(Component):
 
     def url(self, name, **kwargs):
         for condition, _ in self._routes:
-            if condition._meta.get("name", "") == name:
-                print(condition.pattern)
+            if condition.meta.get("name", "") == name:
                 return condition.pattern.decode().replace("\\", "").format(**kwargs)
+        raise ValueError("Unknown url")
 
     def route(self, path, method="GET", **meta):
         def _decorator(handler):

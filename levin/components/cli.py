@@ -1,7 +1,7 @@
 import argparse
 import inspect
 import sys
-from typing import Callable, Awaitable, Iterable, Optional, Union, List, Dict
+from typing import Awaitable, Callable, Dict, Iterable, List, Optional, Union
 
 from levin.core.component import Component
 
@@ -17,21 +17,22 @@ class Cli(Component):
     name = "cli"
 
     def init(self, app):
-        self.app = app
+        self.app = app  # pylint: disable=attribute-defined-outside-init
 
     @staticmethod
     def _get_commands(component: Component):
-        for name, method in inspect.getmembers(component, predicate=inspect.ismethod):
+        for _, method in inspect.getmembers(component, predicate=inspect.ismethod):
             if getattr(method, _PROPERTY, None):
                 yield method
 
-    def _get_command(self, component: Component, command: str) -> Optional[Union[Callable, Awaitable]]:
+    def _get_command(self, component: Component, command_name: str) -> Optional[Union[Callable, Awaitable]]:
         for command_ in self._get_commands(component):
-            if command_.__name__ == command:
+            if command_.__name__ == command_name:
                 return command_
+        return None
 
-    def _get_command_options(self, command: Callable) -> Iterable[Dict]:
-        for param in inspect.signature(command).parameters.values():
+    def _get_command_options(self, command_func: Callable) -> Iterable[Dict]:
+        for param in inspect.signature(command_func).parameters.values():
             if param.annotation is param.empty:
                 continue
             if inspect.isclass(param.annotation):
@@ -39,7 +40,8 @@ class Cli(Component):
             elif hasattr(param.annotation, "__args__"):
                 yield from self._get_for_type(param.annotation.__args__[0], param)
 
-    def _get_for_type(self, _type, param):
+    @staticmethod
+    def _get_for_type(_type, param):
         if issubclass(_type, bool):
             yield {"dest": f"--{param.name}", "default": param.default, "required": False, "action": "store_true"}
 
@@ -54,7 +56,7 @@ class Cli(Component):
         else:
             yield {"option_strings": f"{param.name}", "dest": param.name, "type": _type}
 
-    def _cli_root(self, argv: List[str]):
+    def _cli_root(self):
         parser = argparse.ArgumentParser(description="Manage app", prog=__name__)
         subparsers = parser.add_subparsers(title="Components", metavar=" ", required=True)
         for component in self.app.components:
@@ -66,23 +68,9 @@ class Cli(Component):
     def _cli_component(self, argv: List[str]):
         component = self.app.get_component(argv[0])
         if not component:
-            exec("E")
-        parser = argparse.ArgumentParser(
-            description=f"Manage component {argv[0]}",
-            prog=argv[0],
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        )
-        subparsers = parser.add_subparsers(title="Commands", metavar=" ", required=True)
-        for command in self._get_commands(component):
-            command_parser = subparsers.add_parser(
-                command.__name__, help=command.__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
-            )
-            for arg in self._get_command_options(command):
-                if "dest" in arg:
-                    dest = arg.pop("dest")
-                    command_parser.add_argument(dest, **arg)
-                else:
-                    command_parser.add_argument(**arg)
+            exit(2)
+
+        parser = self._get_parser_for_component(component, prog=argv[0])
         if len(argv) == 1:
             parser.print_help()
         else:
@@ -91,11 +79,31 @@ class Cli(Component):
             if result:
                 print(result)
 
-    def __call__(self, argv: List[str] = sys.argv[1:]):
+    def _get_parser_for_component(self, component, prog):
+        parser = argparse.ArgumentParser(
+            description=f"Manage component {prog}", prog=prog, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+        subparsers = parser.add_subparsers(title="Commands", metavar=" ", required=True)
+        for command_ in self._get_commands(component):
+            self._add_command_argument(command_, subparsers)
+        return parser
+
+    def _add_command_argument(self, command_, subparsers):
+        command_parser = subparsers.add_parser(
+            command_.__name__, help=command_.__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+        for arg in self._get_command_options(command_):
+            if "dest" in arg:
+                dest = arg.pop("dest")
+                command_parser.add_argument(dest, **arg)
+            else:
+                command_parser.add_argument(**arg)
+
+    def __call__(self, argv: Iterable[str] = tuple(sys.argv[1:])):
         commands = len([_ for _ in argv if not _.startswith("-")])
 
         if commands == 0:
-            self._cli_root(argv)
+            self._cli_root()
         else:
             self._cli_component(argv)
 

@@ -17,6 +17,7 @@ from typing import List
 
 
 class CallResult:
+    # pylint: disable=too-many-instance-attributes
     __slots__ = ("lineno", "caller_lineno", "filename", "depth", "start", "end", "ncalls", "mem")
 
     def __init__(
@@ -24,12 +25,12 @@ class CallResult:
         lineno: int,
         caller_lineno: int,
         filename: str,
-        depth: int,
         start: float,
-        end: float = 0,
+        depth: int = 0,
+        end: float = 0.0,
         ncalls: int = 0,
         mem: int = 0,
-    ):
+    ):  # pylint: disable=too-many-arguments
         self.lineno = lineno
         self.filename = filename
         self.caller_lineno = caller_lineno
@@ -57,6 +58,8 @@ class CallResult:
 
 class SimpleProfile:
     """Track only by call/return/exceptions """
+
+    # pylint: disable=too-many-instance-attributes
 
     CALL = "call"
     C_CALL = "c_call"
@@ -90,14 +93,13 @@ class SimpleProfile:
             self._save_function(frame.f_code)
 
     def _get_depth_at_recursion(self, mother_frame, recursion_depth):
-        i = 0
-        while self._get_code_alias(mother_frame.f_code) == self._get_code_alias(
-                mother_frame.f_back.f_code):
-            i += 1
+        depth = 0
+        while self._get_code_alias(mother_frame.f_code) == self._get_code_alias(mother_frame.f_back.f_code):
+            depth += 1
             mother_frame = mother_frame.f_back
-        if i >= recursion_depth or i == 0:
-            return
-        return i
+        if depth >= recursion_depth or depth == 0:
+            return None
+        return depth
 
     def _get_current_depth(self, event, frame):
         frame = self._get_event_frame(event, frame)
@@ -105,16 +107,18 @@ class SimpleProfile:
         self._save_frame(frame)
 
         if code_alias in self._target_func:
-            indexes = [i for i, func in enumerate(self._target_func) if func == code_alias]
+            indexes = [index for index, func in enumerate(self._target_func) if func == code_alias]
             if len(indexes) > 1:  # recursion
                 return self._get_depth_at_recursion(frame, len(indexes))
             return indexes.pop() + 1
+        return None
 
     def _get_the_same_call(self, frame, depth):
         new_call = self._create_call_from(frame, depth)
         for call in self._calls:
             if self._is_the_same_call(new_call, call):
                 return call
+        return None
 
     @staticmethod
     def _is_the_same_call(call_1: CallResult, call_2: CallResult):
@@ -225,25 +229,25 @@ class SimpleProfile:
 
     def get_lines(self):
         lines = {(call.lineno, call.filename, call.depth): call for call in self._calls}
-        for depth, _func in enumerate(self._target_func, start=1):
-            func_filename, func_lineno, _ = _func
-            code = self._get_function(func_filename, func_lineno)
-            for lineno, text_line in enumerate(code.splitlines()[1:], start=1):
+        for depth, (func_filename, func_lineno, _) in enumerate(self._target_func, start=1):
+            for lineno, text_line in enumerate(
+                self._get_function(func_filename, func_lineno).splitlines()[1:], start=1
+            ):
                 if not text_line.strip():
                     continue
-                line = lines.get((lineno + func_lineno, func_filename, depth))
-                if not line:
-                    line = CallResult(
-                        lineno=lineno + func_lineno,
-                        filename=func_filename,
-                        start=0,
-                        caller_lineno=func_lineno,
-                        depth=depth,
-                    )
+                line = self._get_line(
+                    lines.get((lineno + func_lineno, func_filename, depth)), lineno, func_lineno, func_filename
+                )
+                line.depth = depth
                 line.mem = self._get_memory_for_call(line)
                 lines[(line.lineno, line.filename, line.depth)] = line
-
         return sorted(lines.values(), key=lambda c: (c.filename, c.depth, c.lineno))
+
+    def _get_line(self, line, lineno, func_lineno, func_filename):
+        if not line:
+            line = CallResult(lineno=lineno + func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno)
+        line.mem = self._get_memory_for_call(line)
+        return line
 
 
 def print_result(profile: SimpleProfile):

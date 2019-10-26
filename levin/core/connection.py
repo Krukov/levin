@@ -4,7 +4,7 @@ from functools import partial
 
 from .common import ParseError, Request, Response
 
-response_500 = Response(status=500, body=b"Sorry")
+response_500 = Response(status=500, body=b"Sorry")  # pylint: disable=invalid-name
 
 
 class CloseException(Exception):
@@ -22,22 +22,30 @@ class Connection:
         self._transport = None
         self._futures = []
 
-    def _done_callback(self, future: asyncio.Future, request=None):
-        if future.cancelled() and self._transport and not self._transport.is_closing():
-            self.write_response(response_500, request)
-        else:
-            try:
-                exception = future.exception()
-            except asyncio.InvalidStateError as exc:
-                exception = exc
-            except asyncio.CancelledError:  # connection lost
-                exception = None
+    @staticmethod
+    def _get_future_exception(future):
+        try:
+            return future.exception()
+        except asyncio.InvalidStateError as exc:
+            return exc
+        except asyncio.CancelledError:  # connection lost
+            return None
 
+    def _done_callback(self, future: asyncio.Future, request=None):
+        try:
+            if future.cancelled():
+                self._write_500(request)
+                return
+            exception = self._get_future_exception(future)
             if exception:
                 traceback.print_exception(None, exception, exception.__traceback__)
-                if self._transport and not self._transport.is_closing():
-                    self.write_response(response_500, request)
-        self._futures.remove(future)
+                self._write_500(request)
+        finally:
+            self._futures.remove(future)
+
+    def _write_500(self, request):
+        if self._transport and not self._transport.is_closing():
+            self.write_response(response_500, request)
 
     def write(self, data):
         self._transport.write(data)
@@ -52,21 +60,7 @@ class Connection:
             future.cancel()
 
     def data_received(self, data: bytes):
-        requests = ()
-        close = True
-        _data = None
-        if self._parser:
-            _data, requests, close = self._parser.handle_request(data)
-        else:
-            for parser in self._parsers:
-                try:
-                    _data, requests, close = parser.handle_request(data)
-                except ParseError:
-                    continue
-                else:
-                    self._parser = parser
-                    break
-
+        _data, requests, close = self._parse(data)
         if _data:
             self.write(_data)
         if requests:
@@ -76,6 +70,18 @@ class Connection:
                 future.add_done_callback(partial(self._done_callback, request=request))
         if close:
             self.close()
+
+    def _parse(self, data):
+        if self._parser:
+            return self._parser.handle_request(data)
+        for parser in self._parsers:
+            try:
+                parsed = parser.handle_request(data)
+            except ParseError:
+                continue
+            else:
+                self._parser = parser
+                return parsed
 
     async def handle_request(self, request: Request):
         response = await self._handler(request)

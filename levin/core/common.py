@@ -44,6 +44,8 @@ class _LazyAttr:
 
 
 class Request:
+    # pylint: disable=too-many-arguments
+
     __slots__ = ("raw_path", "method", "body", "headers", "stream", "protocol", "_scope")
 
     def __init__(

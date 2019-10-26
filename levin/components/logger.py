@@ -26,7 +26,7 @@ class LoggerComponent(Component):
     def init(self, app):
         if self.logger_config:
             dictConfig(self.logger_config)
-        self._logger = logging.getLogger(self.logger_name)
+        self._logger = logging.getLogger(self.logger_name)  # pylint: disable=attribute-defined-outside-init
 
     def start(self, app):
         self._logger.info("Start server")

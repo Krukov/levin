@@ -69,27 +69,28 @@ class TemplateFormat(Component):
 
     def init(self, app):
         for _dir in self.templates_dirs:
-            for root, dirs, files in os.walk(_dir):
+            for root, _, files in os.walk(_dir):
                 self._check_and_save(files, root)
 
     def _check_and_save(self, files, root: str):
-        for _file in files:
-            if not _file.endswith(self.templates_formats):
+        for file_ in files:
+            if not file_.endswith(self.templates_formats):
                 continue
-            with open(os.path.join(root, _file)) as fd:
-                self._templates[(root, _file)] = fd.read()
+            with open(os.path.join(root, file_)) as open_file:
+                self._templates[(root, file_)] = open_file.read()
 
     def _get_template(self, name):
-        for root, _file in self._templates.keys():
-            if _file == name:
-                return self._templates[(root, _file)]
+        for _, file_ in self._templates:
+            if file_ == name:
+                return self._templates[(_, file_)]
+        return None
 
     def render(self, path, context: dict, request=None):
         template = self._get_template(path)
         if not template:
             raise Exception("Wrong template name")
         if request:
-            context.update(request._scope)
+            context.update(request._scope)  # pylint: disable=protected-access
 
         return (
             string.Template(template=template)

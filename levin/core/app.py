@@ -35,7 +35,7 @@ class Application:
 
     def _add_component(self, component, position=None):
         if isinstance(component, str):
-            pass  # todo: import from string and init
+            pass
         if not isinstance(component, Component):
             component = create_component_from(component)
         self._components.insert(position or len(self._components), component)
@@ -58,7 +58,7 @@ class Application:
         _components_to_remove = []
         for component in self._components:
             try:
-                await call_or_await(component._start, self)
+                await call_or_await(component._start, self)  # pylint: disable=protected-access
             except DisableComponentError:
                 _components_to_remove.append(component)
         for component in _components_to_remove:
@@ -76,17 +76,17 @@ class Application:
         run_app(self, host, port=port)
 
     def configure(self, config: Dict):
-        for component_name, config in config.items():
+        for component_name, config_ in config.items():
             component = self.get_component(component_name)
             if not component:
-                print("Warning")
-                continue
-            component.configure(**config)
+                raise ValueError(f"Wrong component name {component_name}")
+            component.configure(**config_)
 
     def get_component(self, component: str) -> Optional[Component]:
         for _component in self._components:
             if _component.name == component:
                 return _component
+        return None
 
     @property
     def components(self):

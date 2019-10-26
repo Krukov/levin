@@ -25,9 +25,9 @@ class Component:
 
     def get_configure_params(self):
         for param in vars(self.__class__):
+            allow_name = param.startswith("_") or param in ("name", "middleware")
             if (
-                param.startswith("_")
-                or param in ("name", "middleware")
+                allow_name
                 or isinstance(getattr(self.__class__, param), property)
                 or inspect.ismethod(getattr(self, param))
             ):
@@ -58,12 +58,12 @@ class MiddlewareComponent(Component):
         super().__init__(**kwargs)
 
     def start(self, app):
-        if self.on_start is not None:
-            return self.on_start(app)
+        if callable(self.on_start):
+            self.on_start(app)  # pylint: disable=not-callable
 
     def stop(self, app):
-        if self.on_stop is not None:
-            return self.on_stop(app)
+        if callable(self.on_stop):
+            self.on_stop(app)  # pylint: disable=not-callable
 
 
 def create_component_from(middleware, on_start=None, on_stop=None, name=None):

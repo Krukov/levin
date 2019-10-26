@@ -27,7 +27,7 @@ class Server:
         host: str = "127.0.0.1",
         port: int = 8000,
         connection_class=Connection,
-        parsers_class=(Http2Parser, Http1ParserHttpTools),
+        parsers_class=(Http2Parser, Http1Parser, Http1ParserHttpTools),
         loop=None,
     ):
         self._connection_class = connection_class
@@ -109,10 +109,10 @@ def run_app(app, host: str = "0.0.0.0", port: int = 8000):
 def run_apps(*args):
     servers = []
     app, port = None, None
-    for n, arg in enumerate(args):
+    for arg_index, arg in enumerate(args):
         if isinstance(arg, (list, tuple)):
             app, port = arg
-        elif not n % 2:
+        elif not arg_index % 2:
             app = arg
             port = None
         else:
