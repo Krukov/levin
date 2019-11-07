@@ -110,6 +110,7 @@ Todo:
 * client ip and proxy info
 * asgi support
 * Push messages
+* http1 keepalive
 
 C0MPONENTS
 * Metrics

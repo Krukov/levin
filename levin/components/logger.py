@@ -19,7 +19,7 @@ class LoggerComponent(Component):
 
     level: int = logging.INFO
     logger_name: str = __name__
-    message_format: str = '"%(method)s %(path)s %(protocol)s" %(status)s - %(body_size)s - %(time)s'
+    message_format: str = '"%(method)s %(path)s %(protocol)s" %(status)s - %(body_size)s - %(time)s - %(stream)s - %(transport)s'
     logger_config: dict = DEFAULT_CONFIG
     extra = {}
 
@@ -47,6 +47,8 @@ class LoggerComponent(Component):
                 "protocol": request.protocol.decode(),
                 "body_size": len(response.body),
                 "time": str(time.perf_counter() - start)[:6],
+                "stream": request.stream,
+                "transport": request.get_transport_info(),
             },
             extra=self.extra,
         )

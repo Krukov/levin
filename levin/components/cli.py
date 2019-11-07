@@ -108,9 +108,9 @@ class Cli(Component):
             self._cli_component(argv)
 
     @command
-    def run(self, port: int = 8000, host: str = "0.0.0.0"):
+    def run(self, port: int = 8000, host: str = "0.0.0.0", ssl_cert: str = "cert.crt", ssl_key: str = "cert.key"):
         """Run server for current app"""
-        self.app.run(host, port)
+        self.app.run(host, port, ssl=(ssl_cert, ssl_key))
 
     @command
     def components(self, values: bool = False, component: Optional[str] = None):

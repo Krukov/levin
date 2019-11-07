@@ -169,6 +169,8 @@ class HttpRouter(Component):
         return _decorator
 
     def middleware(self, request, handler, call_next):
+        request.set("get_url", self.url, lazy=False)
+        request.set("get_route", self._resolve, lazy=False)
         _handler, condition_result = self._resolve(request)
         if isinstance(condition_result, dict):
             for key, value in condition_result.items():

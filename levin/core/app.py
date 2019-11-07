@@ -25,7 +25,8 @@ async def call_or_await(func_or_coro, *args, **kwargs):
 class Application:
     def __init__(self, components=(), default_handler=_handler):
         self._components: List[Component] = []
-        self.handler = default_handler
+        self._handler = default_handler
+        self.handler = None
         self.__start = False
         self._init_components(components)
 
@@ -43,13 +44,13 @@ class Application:
 
     add = _add_component  # public version
 
-    def _create_handler(self):
+    def _create_handler(self, handler):
         call_next = _call_next
         for component in self._components[::-1]:
             if component.middleware is not None:
                 call_next = partial(component.middleware, call_next=call_next)
                 call_next.component_name = component.name
-        self.handler = partial(call_next, handler=self.handler)
+        self.handler = partial(call_next, handler=handler)
 
     async def start(self):
         if self.__start:
@@ -64,7 +65,7 @@ class Application:
         for component in _components_to_remove:
             self._components.remove(component)
 
-        self._create_handler()
+        self._create_handler(self._handler)
 
     async def stop(self):
         if not self.__start:
@@ -72,8 +73,8 @@ class Application:
         for component in self._components:
             await call_or_await(component.stop, self)
 
-    def run(self, host="0.0.0.0", port=8000):
-        run_app(self, host, port=port)
+    def run(self, host="0.0.0.0", port=8000, ssl=None):
+        run_app(self, host, port=port, ssl=ssl)
 
     def configure(self, config: Dict):
         for component_name, config_ in config.items():

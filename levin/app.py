@@ -6,6 +6,7 @@ __all__ = ["app"]
 app = _Application(
     components=[
         components.PatchRequest(),
+        components.Push(),
         components.LoggerComponent(),
         components.ErrorHandle(),
         components.TimeLimit(),

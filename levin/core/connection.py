@@ -2,7 +2,7 @@ import asyncio
 import traceback
 from functools import partial
 
-from .common import ParseError, Request, Response
+from .common import ParseError, Request, Response, Push
 
 response_500 = Response(status=500, body=b"Sorry")  # pylint: disable=invalid-name
 
@@ -31,6 +31,16 @@ class Connection:
         except asyncio.CancelledError:  # connection lost
             return None
 
+    @property
+    def is_ssl(self) -> bool:
+        return bool(self._transport.get_extra_info("sslcontext"))
+
+    @property
+    def scheme(self) -> bytes:
+        if self.is_ssl:
+            return b"https"
+        return b"http"
+
     def _done_callback(self, future: asyncio.Future, request=None):
         try:
             if future.cancelled():
@@ -42,6 +52,9 @@ class Connection:
                 self._write_500(request)
         finally:
             self._futures.remove(future)
+
+    def _close_callback(self, future):
+        self.close()
 
     def _write_500(self, request):
         if self._transport and not self._transport.is_closing():
@@ -63,13 +76,17 @@ class Connection:
         _data, requests, close = self._parse(data)
         if _data:
             self.write(_data)
+        future = None
         if requests:
             for request in requests:
                 future = asyncio.run_coroutine_threadsafe(self.handle_request(request), loop=self._loop)
                 self._futures.append(future)
                 future.add_done_callback(partial(self._done_callback, request=request))
         if close:
-            self.close()
+            if future:
+                future.add_done_callback(self._close_callback)
+            else:
+                self.close()
 
     def _parse(self, data):
         if self._parser:
@@ -83,9 +100,24 @@ class Connection:
                 self._parser = parser
                 return parsed
 
+    def _get_transport_info(self, request):
+        def info():
+            return self._transport.get_extra_info('peername'), self._transport.get_extra_info('sockname')
+        return info
+
     async def handle_request(self, request: Request):
-        response = await self._handler(request)
+        request.set('get_transport_info', self._get_transport_info, lazy=True)
+        response: Response = await self._handler(request)
         self.write_response(response, request)
+        if response.pushes and self._parser and getattr(self._parser, "push_support", False):
+            await asyncio.gather(*[self.handle_push(push, request) for push in response.pushes])
+
+    async def handle_push(self, push: Push, request):
+        _request = Request(path=push.path, method=push.method, protocol=request.protocol, headers=request.headers.items(), stream=request.stream, scheme=self.scheme)
+        _request.set('get_transport_info', self._get_transport_info, lazy=True)
+        response: Response = await self._handler(_request)
+        response.push = True
+        self.write_response(response, _request)
 
     def write_response(self, response: Response, request: Request):
         for data in self._parser.handle_response(response, request):

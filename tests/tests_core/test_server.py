@@ -2,10 +2,15 @@ import asyncio
 
 import pytest
 
-from levin.core.app import Application
-from levin.core.server import Server, run
+from levin.core.connection import Connection
+from levin.core.parsers import http_simple
 
-app = Application()
+
+def simple():
+    pass
+
+def create_connection(parser=http_simple.Parser, handler=simple):
+    return Connection(parsers=[parser(), ], handler=handler)
 
 
 @pytest.fixture(scope="session")

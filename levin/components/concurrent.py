@@ -11,7 +11,9 @@ class _Executor(Component):
     max_workers = 2 * multiprocessing.cpu_count() + 1
 
     def start(self, app):
-        self._executor = self.executor_class(max_workers=self.max_workers, **self.executor_kwargs)  # pylint: disable=attribute-defined-outside-init
+        self._executor = self.executor_class(
+            max_workers=self.max_workers, **self.executor_kwargs
+        )  # pylint: disable=attribute-defined-outside-init
 
     def stop(self, app):
         self._executor.shutdown(wait=True)

@@ -9,7 +9,7 @@ run:
 
 .PHONY: check
 check:
-	curl  --http2-prior-knowledge localhost:8000/test/  -H "Content-type: application/json"
+	curl  --http2-prior-knowledge https://localhost:8000/test/  -H "Content-type: application/json"
 
 .PHONY: profiling
 profiling:
@@ -70,3 +70,7 @@ pylint-score:
 	@echo $($@_SCORE)
 	@if [ $(shell echo "$($@_SCORE) < 9.90" | bc) -eq 1 ]; then exit 1; fi
 	@anybadge --value=$($@_SCORE) -o --file=pylint.svg pylint
+
+
+gen-cert:
+	openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes

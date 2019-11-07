@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-import asyncio
 import time
 from levin import app
 import ujson
 import faulthandler
-# import uvloop
-# uvloop.install()
+import uvloop
+uvloop.install()
 
 app.configure({
     "templates": {
@@ -24,6 +23,7 @@ app.configure({
 
 @app.route.get("/-/", name="root", status=201)
 async def root(request):
+    request.add_push(b"/q/")
     a = list(range(100))
     return {"status": a}
 

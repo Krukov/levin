@@ -1,4 +1,4 @@
-from typing import Mapping, Tuple
+from typing import Mapping, Tuple, Optional, Iterable
 
 EMPTY = object()
 
@@ -30,7 +30,7 @@ def _create_headers_map(headers: Tuple) -> _HeadersProxy:
     _headers = {}
     for name, value in headers:
         _headers.setdefault(name.lower(), []).append(value)
-    return _HeadersProxy({name: b"; ".join(value) for name, value in _headers.items()})
+    return {name.lower(): b"; ".join(value) for name, value in _headers.items()}
 
 
 class _LazyAttr:
@@ -46,7 +46,7 @@ class _LazyAttr:
 class Request:
     # pylint: disable=too-many-arguments
 
-    __slots__ = ("raw_path", "method", "body", "headers", "stream", "protocol", "_scope")
+    __slots__ = ("raw_path", "method", "body", "headers", "stream", "protocol", "_scope", "scheme")
 
     def __init__(
         self,
@@ -56,6 +56,7 @@ class Request:
         headers: Tuple = (),
         protocol: bytes = b"",
         stream: int = 0,
+        scheme: bytes = b"http",
     ):
         self.raw_path = path
         self.method = method
@@ -63,6 +64,7 @@ class Request:
         self.headers = _create_headers_map(headers)
         self.stream = stream
         self.protocol = protocol
+        self.scheme = scheme
         self._scope = {}
 
     def __getattr__(self, item):
@@ -92,14 +94,21 @@ class Request:
             self._scope[key] = value
 
 
-class Response:
-    __slots__ = ("status", "body", "headers")
+class Push:
+    __slots__ = ("path", "method", "stream")
 
-    def __init__(self, status: int, body: bytes, headers=None):
+    def __init__(self, path: bytes, method: bytes = b"GET"):
+        self.path = path
+        self.method = method
+        self.stream = None
+
+
+class Response:
+    __slots__ = ("status", "body", "headers", "pushes", "push")
+
+    def __init__(self, status: int, body: bytes, headers: Optional[Mapping[bytes, bytes]] = None, pushes: Iterable[Push] = (), push: bool = False):
         self.status = status
         self.body = body
         self.headers = headers or {}
-
-
-class PseudoConnection:
-    __slots__ = ("peername", "_close", "requests")
+        self.pushes = pushes or []
+        self.push = push
