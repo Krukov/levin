@@ -1,10 +1,10 @@
 import asyncio
 import json
 import traceback
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
-from levin.core.common import Request, Response, Push as _Push
+from levin.core.common import Request, Response
 from levin.core.component import Component
 
 DEFAULT_ENCODING = "iso-8859-1"
@@ -28,33 +28,6 @@ class ErrorHandle(Component):
             if asyncio.iscoroutine(response):
                 response = await response
             return response
-
-
-class TimeLimit(Component):
-    name = "handler_timeout"
-
-    timeout: int = 10
-    loop = None
-
-    def start(self, app):
-        self._loop = self.loop or asyncio.get_running_loop()  # pylint: disable:attribute-defined-outside-init
-
-    @staticmethod
-    async def _timeout_manager(value: int, task: asyncio.Task):
-        await asyncio.sleep(value)
-        if not task.done():
-            task.cancel()
-
-    async def middleware(self, request: Request, handler, call_next):
-
-        task = asyncio.create_task(call_next(request, handler))  # task run in context copy
-        timeout_task = self._loop.create_task(self._timeout_manager(self.timeout, task))
-        try:
-            return await task
-        except asyncio.CancelledError:
-            return Response(status=500, body=b"Timeout")
-        finally:
-            timeout_task.cancel()
 
 
 class PatchRequest(Component):
@@ -118,25 +91,3 @@ class PatchRequest(Component):
         return DEFAULT_ENCODING
 
 
-class Push(Component):
-    name = "push"
-    _scope_value = "_pushes"
-
-    async def middleware(self, request: Request, handler, call_next) -> Response:
-        request.set("add_push", self._create_add_push, lazy=True)
-        response: Response = await call_next(request, handler)
-        if request.get(self._scope_value):
-            response.pushes = request.get(self._scope_value)
-        if request.get("push"):
-            response.pushes.append(_Push(path=request.get("push").format(**request._scope),))
-        return response
-
-    def _create_add_push(self, request: Request):
-
-        def add(path: Union[str, bytes], method: Union[str, bytes] = b"GET"):
-
-            pushes = request.get(self._scope_value, [])
-            pushes.append(_Push(path, method))
-            request.set(self._scope_value, pushes, rewrite=True)
-
-        return add

@@ -21,6 +21,7 @@ class ProfileHandler(Component):
     threshold: float = 0.1
     get_time: Callable = staticmethod(time.perf_counter)
     depth: int = 1
+    with_memory: bool = False
     callback = staticmethod(print_result)
     profile_condition = staticmethod(_default_profile_condition)
 
@@ -33,7 +34,7 @@ class ProfileHandler(Component):
         async with self._lock:
             self._targets.remove(_request_hash(request))
 
-            profile = SimpleProfile(depth=request.get("depth", self.depth), memory=True)
+            profile = SimpleProfile(depth=request.get("depth", self.depth), memory=self.with_memory)
             profile.add_target(handler)
             handler = profile.trace(handler)
             try:
@@ -51,4 +52,5 @@ class ProfileHandler(Component):
             if request.get("profile_condition", self.profile_condition)(
                 request, self.get_time() - start, self.threshold
             ):
+                request.logger.info("add to profile")
                 self._targets.append(_request_hash(request))

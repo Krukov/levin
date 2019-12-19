@@ -13,6 +13,7 @@ from levin.core.parsers.hyper import Parser as Http2Parser
 # https://ruslanspivak.com/lsbaws-part3/
 # https://github.com/pgjones/hypercorn
 # https://github.com/python-hyper/hyper-h2
+# https://medium.com/python-pandemonium/how-to-serve-http-2-using-python-5e5bbd1e7ff1
 
 # https://hub.docker.com/r/svagi/h2load
 # https://www.protocols.ru/WP/rfc7540/
@@ -107,6 +108,8 @@ def run(*servers, loop=None, stop_event=None, wait=True):
         manage_handler(
             _manage([loop.create_task(server.get_task(loop, stop_event)) for server in servers], servers, stop_event)
         )
+    except:
+        pass
     finally:
         _stop(stop_event, loop)
 

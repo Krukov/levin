@@ -3,8 +3,9 @@ import time
 from levin import app
 import ujson
 import faulthandler
-import uvloop
-uvloop.install()
+# import uvloop
+# uvloop.install()
+import typing
 
 app.configure({
     "templates": {
@@ -18,13 +19,18 @@ app.configure({
     "process_executor": {
         "max_workers": 1
     },
+    "push": {
+        "enable": False,
+    },
+    "profile": {
+        "enable": False
+    },
 })
 
 
-@app.route.get("/-/", name="root", status=201)
-async def root(request):
-    request.add_push(b"/q/")
-    a = list(range(100))
+@app.route.get("/-/", name="root", status=201, push="/q/")
+async def root():
+    a = list(range(30000))
     return {"status": a}
 
 
@@ -38,8 +44,8 @@ def condition(*args, **kwargs):
 
 
 @app.route.get("/new/{user}/", profile_condition=condition, name="user")
-async def user(request):
-    return {"status": request.get("user"), "url": app.route.url("user", user="test")}
+async def _user(user: app.injector.Inject("user")):
+    return {"status": user, "url": app.route.url("user", user="test")}
 
 
 @app.route.get("/q/")

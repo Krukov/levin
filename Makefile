@@ -20,13 +20,13 @@ frame:
 	rm .pid
 	SPID="$(shell python run.py & echo $$!)"
 	echo $(SPID)
-	docker run --rm -d  svagi/h2load -c 50 -n 20000 -m 10 -t 4 http://host.docker.internal:8000/
+	docker run --rm -d  svagi/h2load -c 50 -n 20000 -m 10 -t 4 https://host.docker.internal:8000/
 	sudo py-spy -d 3 -f profile.svg -p $(SPID)
 	kill -9 $(SPID)
 
 .PHONY: run
 perf:
-	docker run --rm -it  svagi/h2load -c 50 -n 20000 -m 10 -t 4 http://host.docker.internal:8000/-/
+	docker run --rm -it  svagi/h2load -c 50 -n 20000 -m 10 -t 4 https://host.docker.internal:8000/-/
 
 .PHONY: format
 format: black isort

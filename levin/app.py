@@ -6,10 +6,10 @@ __all__ = ["app"]
 app = _Application(
     components=[
         components.PatchRequest(),
-        components.Push(),
+        components.h2.Push(),
         components.LoggerComponent(),
         components.ErrorHandle(),
-        components.TimeLimit(),
+        components.limit.TimeLimit(),
         components.HttpRouter(),
         components.RunProcess(),
         components.ProfileHandler(),
@@ -17,6 +17,9 @@ app = _Application(
         components.JsonFormat(),
         components.TextFormat(),
         components.TemplateFormat(),
+
+        components.InjectFromScope(),
+        components.SkipRequest(),
         components.Cli(),
     ]
 )

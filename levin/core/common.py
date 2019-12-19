@@ -95,12 +95,11 @@ class Request:
 
 
 class Push:
-    __slots__ = ("path", "method", "stream")
+    __slots__ = ("path", "method")
 
     def __init__(self, path: bytes, method: bytes = b"GET"):
         self.path = path
         self.method = method
-        self.stream = None
 
 
 class Response:

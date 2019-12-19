@@ -35,6 +35,7 @@ class LoggerComponent(Component):
         self._logger.info("Server stop")
 
     async def middleware(self, request: Request, handler, call_next) -> Response:
+        request.set("logger", self._logger)
         start = time.perf_counter()
         response: Response = await call_next(request, handler)
         self._logger.log(

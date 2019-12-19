@@ -115,7 +115,6 @@ class Parser:
                     request_headers=request_headers,
                 )
             except ProtocolError as exc:
-                print(exc)
                 return
             self.conn.end_stream(request.stream)
 

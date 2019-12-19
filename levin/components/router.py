@@ -52,11 +52,11 @@ class EqualsCondition:
     def __init__(self, method: bytes, pattern: bytes, meta: Dict):
         self.method = method
         self.pattern = pattern
-        self._meta = meta
+        self.meta = meta
 
     def __call__(self, request: Request) -> Union[bool, Dict]:
         if self.method == request.method and _slash_append(self.pattern) == _slash_append(request.path):
-            return {"pattern": self.pattern, **self._meta}
+            return {"pattern": self.pattern, **self.meta}
         return False
 
 
