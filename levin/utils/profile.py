@@ -133,11 +133,11 @@ class SimpleProfile:
 
     def _trace(self, frame, event: str, arg):
         if frame is None:
-            return self.trace
+            return self._trace
         # SKIP DEPTH IF IT == 1
         depth = self._get_current_depth(event, frame)
         if depth is None:
-            return self.trace
+            return self._trace
         target_frame = self._get_event_frame(event, frame)
 
         if event in self.CALLS:
@@ -227,36 +227,70 @@ class SimpleProfile:
                     return statistic.size
         return 0
 
-    def get_lines(self):
-        lines = {(call.lineno, call.filename, call.depth): call for call in self._calls}
-        for depth, (func_filename, func_lineno, _) in enumerate(self._target_func, start=1):
-            for lineno, text_line in enumerate(
-                self._get_function(func_filename, func_lineno).splitlines()[1:], start=1
-            ):
-                if not text_line.strip():
-                    continue
-                line = self._get_line(
-                    lines.get((lineno + func_lineno, func_filename, depth)), lineno, func_lineno, func_filename
-                )
-                line.depth = depth
-                line.mem = self._get_memory_for_call(line)
-                lines[(line.lineno, line.filename, line.depth)] = line
-        return sorted(lines.values(), key=lambda c: (c.filename, c.depth, c.lineno))
+    # def get_lines(self):
+    #     lines = {(call.lineno, call.filename, call.depth): call for call in self._calls}
+    #     for depth, (func_filename, func_lineno, _) in enumerate(self._target_func, start=1):
+    #         for lineno, text_line in enumerate(
+    #             self._get_function(func_filename, func_lineno).splitlines()[1:], start=1
+    #         ):
+    #             if not text_line.strip():
+    #                 continue
+    #             line = self._get_line(
+    #                 lines.get((lineno + func_lineno, func_filename, depth)), lineno, func_lineno, func_filename
+    #             )
+    #             line.depth = depth
+    #             line.mem = self._get_memory_for_call(line)
+    #             lines[(line.lineno, line.filename, line.depth)] = line
+    #     return sorted(lines.values(), key=lambda c: (c.filename, c.start))
+    #
+    # def _get_line(self, line, lineno, func_lineno, func_filename):
+    #     if not line:
+    #         line = CallResult(lineno=lineno + func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno)
+    #     line.mem = self._get_memory_for_call(line)
+    #     return line
 
-    def _get_line(self, line, lineno, func_lineno, func_filename):
-        if not line:
-            line = CallResult(lineno=lineno + func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno)
-        line.mem = self._get_memory_for_call(line)
-        return line
+    def get_tree_of_calls(self):
+        calls = []
+        func_filename, func_lineno, _ = self._target_func[0]
+        target_call = CallResult(lineno=func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno, depth=0)
+        self._get_call_deep(target_call, calls)
+        return calls
+
+    get_lines = get_tree_of_calls
+
+    def _get_call_deep(self, call: CallResult, calls):
+        for lineno, text_line in enumerate(
+                self._get_function(call.filename, call.lineno).splitlines()[1:], start=1
+        ):
+            if not text_line.strip():
+                continue
+            line = self._get_call(lineno, call.lineno, call.filename, call.depth + 1)
+            for called in self._get_called_from_line(line):
+                self._get_call_deep(called, calls)
+            calls.append(line)
+
+    def _get_called_from_line(self, line: CallResult):
+        print("LINE:", line)
+        for call in self._calls:
+            print("->", call, call.caller_lineno)
+            if call.depth == line.depth + 1 and call.caller_lineno == line.func_line:
+                yield call
+
+    def _get_call(self, lineno, func_lineno, func_filename, depth):
+        for call in self._calls:
+            if call.lineno == lineno + func_lineno and call.filename == func_filename and call.depth == depth:
+                return call
+        return CallResult(lineno=lineno + func_lineno, filename=func_filename, start=0, caller_lineno=func_lineno, depth=depth)
 
 
 def print_result(profile: SimpleProfile):
     filename = None
-    for line in profile.get_lines():
+    for line in profile.get_tree_of_calls():
         if filename != line.filename:
             filename = line.filename
             print(f"--> {filename}")
+        TAB = '\t'
         if line.mem or line.time:
-            print(f"{line.lineno}: {line.code} \t <- {line.time}s; {line.mem}B nc {line.ncalls}")
+            print(f"{line.lineno}: {TAB * line.depth}{line.code} {TAB} <- {line.time}s; {line.mem}B nc {line.ncalls} - {line.start}")
         else:
-            print(f"{line.lineno}: {line.code}")
+            print(f"{line.lineno}: {TAB * line.depth}{line.code}")
