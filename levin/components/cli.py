@@ -121,11 +121,15 @@ class Cli(Component):
         for _component in self.app.components:
             if component and _component.name != component:
                 continue
-            components += f"\n{_component.name}: "
+            components += f"\n{'✔' if _component.enable else '✗'} {_component.name}"
+            params = [param for param in _component.get_configure_params() if param != "enable"]
+            if not params:
+                continue
+            components += ":"
             if values or component:
                 components += "\n" + "\n ".join(
-                    [f"\t{param} = {getattr(_component, param)}" for param in _component.get_configure_params()]
+                    [f"\t{param} = {getattr(_component, param)}" for param in params]
                 )
             else:
-                components += "\t" + ", ".join(_component.get_configure_params())
+                components += "\t" + ", ".join(params)
         return components

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import time
+import asyncio
 from levin import app
 import ujson
 import faulthandler
@@ -23,14 +24,20 @@ app.configure({
         "enable": False,
     },
     "profile": {
-        "enable": False
+        # "with_memory": True,
+        "depth": 2,
     },
 })
 
 
-@app.route.get("/-/", name="root", status=201, push="/q/")
+async def sleep():
+    await asyncio.sleep(0.1)
+
+
+@app.route.get("/-/", name="root", profile_condition=lambda *_, **__: True, status=201, push="/q/")
 async def root():
-    a = list(range(30000))
+    await sleep()
+    a = list(range(100000))
     return {"status": a}
 
 
@@ -40,7 +47,7 @@ def userp(request):
 
 
 def condition(*args, **kwargs):
-    return False
+    return True
 
 
 @app.route.get("/new/{user}/", profile_condition=condition, name="user")

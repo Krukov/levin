@@ -1,19 +1,22 @@
 import asyncio
 import json
-import traceback
 from typing import Dict, Optional
 from urllib.parse import parse_qs, urlparse
+import sys
 
 from levin.core.common import Request, Response
 from levin.core.component import Component
+from better_exceptions import excepthook, ExceptionFormatter, to_byte
 
 DEFAULT_ENCODING = "iso-8859-1"
 CONTENT_TYPE_HEADER = b"content-type"
 
+formatter = ExceptionFormatter(colored=False, pipe_char='|', cap_char='->')
+
 
 def _default_on_error(request, exception):
-    traceback.print_exception(None, exception, exception.__traceback__)
-    return Response(status=500, body=traceback.format_exc().encode())
+    excepthook(exception.__class__, exception, sys.exc_info()[2])
+    return Response(status=500, body=to_byte(formatter.format_exception(exception.__class__, exception, sys.exc_info()[2])))
 
 
 class ErrorHandle(Component):

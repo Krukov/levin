@@ -19,7 +19,9 @@ app = _Application(
         components.TemplateFormat(),
 
         components.InjectFromScope(),
-        components.SkipRequest(),
+        components.AddRequest(),
+        # components.ProfileHandler(),
+
         components.Cli(),
     ]
 )

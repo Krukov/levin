@@ -5,13 +5,13 @@ from levin.core.common import Request, Response
 from levin.core.component import Component
 
 
-class SkipRequest(Component):
-    name = "skip_request"
+class AddRequest(Component):
+    name = "add_request"
 
     @staticmethod
     def middleware(request: Request, handler, call_next) -> Response:
-        if "request" not in inspect.signature(handler).parameters:
-            return handler()
+        if "request" in inspect.signature(handler).parameters:
+            handler = partial(handler, request)
 
         return call_next(request, handler)
 

@@ -7,4 +7,4 @@ from .formating import JsonFormat, TemplateFormat, TextFormat
 from .logger import LoggerComponent
 from .profiling import ProfileHandler
 from .router import HttpRouter
-from .inject import SkipRequest, InjectFromScope
+from .inject import AddRequest, InjectFromScope

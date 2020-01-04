@@ -12,7 +12,7 @@ async def _handler(request: Request):
 
 
 async def _call_next(request, handler):
-    return await handler(request)
+    return await handler()
 
 
 async def call_or_await(func_or_coro, *args, **kwargs):
