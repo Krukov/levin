@@ -108,8 +108,9 @@ class Cli(Component):
             self._cli_component(argv)
 
     @command
-    def run(self, port: int = 8000, host: str = "0.0.0.0", ssl_cert: str = "cert.crt", ssl_key: str = "cert.key"):
+    def run(self, port: int = 8000, host: str = "0.0.0.0", ssl_cert: str = "", ssl_key: str = ""):
         """Run server for current app"""
+        ssl = None
         if ssl_key and ssl_cert:
             ssl = (ssl_cert, ssl_key)
         self.app.run(host, port, ssl=ssl)
